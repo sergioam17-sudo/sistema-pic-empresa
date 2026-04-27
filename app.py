@@ -30,17 +30,17 @@ def init_db():
         peso REAL,
         FOREIGN KEY(id_actividad) REFERENCES actividades_maestro(id_actividad)
     )''')
-# Tabla: ASIGNACIÓN A MUNICIPIOS (Actualizada con Contrato)
+# Tabla: ASIGNACIÓN A MUNICIPIOS (Actualizada con Contrato y Pagos)
     cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
         id_asig INTEGER PRIMARY KEY AUTOINCREMENT,
         id_sub INTEGER,
         municipio TEXT,
         num_contrato TEXT,
+        num_pagos INTEGER,
         valor_asignado REAL,
         meta_municipal REAL,
         FOREIGN KEY(id_sub) REFERENCES subactividades(id_sub)
     )''')
-
 
 
 
@@ -289,7 +289,8 @@ else:
                 with st.form("form_municipio"):
                     m1, m2 = st.columns(2)
                     muni_nombre = m1.selectbox("Municipio de Santander", municipios_santander)
-                    n_contrato = m1.text_input("Número de Contrato")
+                    n_contrato = m1.text_input("Número de Contrato / Convenio")
+                    n_pagos = m1.number_input("Número de Pagos (Seguimientos)", min_value=1, step=1, help="Define cuántos reportes de pago tendrá esta actividad")
                     
                     muni_valor = m2.number_input("Valor a asignar ($)", min_value=0.0, max_value=float(datos_sub['valor_sub']), step=1000.0)
                     muni_meta = m2.number_input("Meta Municipal", min_value=0.0)
@@ -300,18 +301,18 @@ else:
                         else:
                             conn = connection()
                             conn.execute("""INSERT INTO asignacion_municipios 
-                                (id_sub, municipio, num_contrato, valor_asignado, meta_municipal) 
-                                VALUES (?,?,?,?,?)""", 
-                                (sub_sel_id, muni_nombre, n_contrato, muni_valor, muni_meta))
+                                (id_sub, municipio, num_contrato, num_pagos, valor_asignado, meta_municipal) 
+                                VALUES (?,?,?,?,?,?)""", 
+                                (sub_sel_id, muni_nombre, n_contrato, n_pagos, muni_valor, muni_meta))
                             conn.commit()
-                            st.success(f"Asignación exitosa para {muni_nombre} - Contrato: {n_contrato}")
+                            st.success(f"Asignación exitosa para {muni_nombre}")
                             st.rerun()
 
                 # Tabla de Visualización Actualizada
                 if not df_asig_actual.empty:
                     st.write("---")
                     st.write("**Asignaciones actuales por Municipio:**")
-                    st.dataframe(df_asig_actual[['id_asig', 'municipio', 'num_contrato', 'valor_asignado', 'meta_municipal']], use_container_width=True)
+                    st.dataframe(df_asig_actual[['id_asig', 'municipio', 'num_contrato', 'num_pagos', 'valor_asignado', 'meta_municipal']], use_container_width=True)
 
                     # Opción para Eliminar
                     with st.expander("🗑️ Eliminar Asignación Municipal"):
