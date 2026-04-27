@@ -79,6 +79,52 @@ else:
                     conn.commit()
                     st.success("✅ Actividad guardada.")
 
+
+
+# --- TABLA DE ACTIVIDADES CON OPCIÓN DE ELIMINAR ---
+            st.write("---")
+            st.subheader("📋 Actividades Generales Registradas")
+            
+            conn = connection()
+            df_maestro = pd.read_sql("SELECT * FROM actividades_maestro", conn)
+            
+            if not df_maestro.empty:
+                # Mostramos la tabla profesional
+                st.dataframe(df_maestro[['id_actividad', 'nombre_actividad', 'programa_responsable', 'valor_total_actividad', 'meta_global', 'unidad_medida']], use_container_width=True)
+                
+                # Opción para eliminar por si hubo error
+                with st.expander("🗑️ Zona de eliminación (Usar con precaución)"):
+                    id_a_borrar = st.number_input("Ingrese el ID de la actividad a eliminar:", min_value=1, step=1)
+                    if st.button("Eliminar Actividad Permanentemente"):
+                        # Validamos que no tenga subactividades antes de borrar
+                        check_sub = pd.read_sql(f"SELECT * FROM subactividades WHERE id_actividad = {id_a_borrar}", conn)
+                        if not check_sub.empty:
+                            st.error("No se puede eliminar: Esta actividad ya tiene subactividades vinculadas. Borre primero las subactividades.")
+                        else:
+                            conn.execute(f"DELETE FROM actividades_maestro WHERE id_actividad = {id_a_borrar}")
+                            conn.commit()
+                            st.warning(f"Actividad {id_a_borrar} eliminada.")
+                            st.rerun()
+            else:
+                st.info("No hay actividades registradas todavía.")
+
+
+
+# --- NUEVA TABLA DE ACTIVIDADES REGISTRADAS ---
+            st.write("---")
+            st.subheader("📋 Actividades Generales Registradas")
+            df_maestro = pd.read_sql("SELECT * FROM actividades_maestro", connection())
+            
+            if not df_maestro.empty:
+                st.dataframe(df_maestro[['nombre_actividad', 'programa_responsable', 'valor_total_actividad', 'meta_global', 'unidad_medida']], use_container_width=True)
+            else:
+                st.info("No hay actividades registradas todavía.")
+
+
+
+
+
+
         # TAB 2: SUBACTIVIDADES
         with tab2:
             st.subheader("Desglose de Subactividades")
@@ -138,3 +184,56 @@ else:
 
                 if not df_sub_existentes.empty:
                     st.dataframe(df_sub_existentes[['nombre_subactividad', 'meta_sub', 'unidad_medida_sub', 'peso', 'valor_sub']])
+
+
+# --- TABLA DE SUBACTIVIDADES CON EDICIÓN Y ELIMINACIÓN ---
+                st.write("---")
+                st.subheader("📋 Subactividades Vinculadas")
+                
+                if not df_sub_existentes.empty:
+                    # Mostrar tabla para referencia de IDs
+                    st.dataframe(df_sub_existentes[['id_sub', 'nombre_subactividad', 'meta_sub', 'unidad_medida_sub', 'peso', 'valor_sub']], use_container_width=True)
+                    
+                    col_ed, col_del = st.columns(2)
+                    
+                    # --- BOTÓN EDITAR ---
+                    with col_ed.expander("📝 Editar Subactividad"):
+                        id_edit = st.number_input("ID de la subactividad a editar:", min_value=1, step=1, key="edit_sub_id")
+                        sub_to_edit = df_sub_existentes[df_sub_existentes['id_sub'] == id_edit]
+                        
+                        if not sub_to_edit.empty:
+                            with st.form("form_edit_sub"):
+                                new_nom = st.text_input("Nuevo Nombre", value=sub_to_edit.iloc[0]['nombre_subactividad'])
+                                new_meta = st.number_input("Nueva Meta", value=float(sub_to_edit.iloc[0]['meta_sub']))
+                                new_peso = st.number_input("Nuevo Peso", value=float(sub_to_edit.iloc[0]['peso']), min_value=0.0, max_value=1.0)
+                                
+                                if st.form_submit_button("Actualizar Subactividad"):
+                                    # Recalcular valor basado en el nuevo peso
+                                    new_val = padre['valor_total_actividad'] * new_peso
+                                    # Verificar que la suma de pesos no supere 1.0 (excluyendo el peso anterior de esta subactividad)
+                                    peso_otros = df_sub_existentes[df_sub_existentes['id_sub'] != id_edit]['peso'].sum()
+                                    
+                                    if (peso_otros + new_peso) > 1.0001:
+                                        st.error("Error: El nuevo peso hace que la suma total supere 1.0")
+                                    else:
+                                        conn = connection()
+                                        conn.execute("""UPDATE subactividades SET 
+                                            nombre_subactividad=?, meta_sub=?, peso=?, valor_sub=? 
+                                            WHERE id_sub=?""", (new_nom, new_meta, new_peso, new_val, id_edit))
+                                        conn.commit()
+                                        st.success("Subactividad actualizada")
+                                        st.rerun()
+                        else:
+                            st.info("Ingrese un ID válido de la tabla de arriba")
+
+                    # --- BOTÓN ELIMINAR ---
+                    with col_del.expander("🗑️ Eliminar Subactividad"):
+                        id_del = st.number_input("ID de la subactividad a eliminar:", min_value=1, step=1, key="del_sub_id")
+                        if st.button("Confirmar Eliminación", type="primary"):
+                            conn = connection()
+                            conn.execute(f"DELETE FROM subactividades WHERE id_sub = {id_del}")
+                            conn.commit()
+                            st.warning(f"Subactividad {id_del} eliminada")
+                            st.rerun()
+                else:
+                    st.info("No hay subactividades vinculadas a esta actividad padre.")
