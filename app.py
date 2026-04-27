@@ -110,20 +110,6 @@ else:
 
 
 
-# --- NUEVA TABLA DE ACTIVIDADES REGISTRADAS ---
-            st.write("---")
-            st.subheader("📋 Actividades Generales Registradas")
-            df_maestro = pd.read_sql("SELECT * FROM actividades_maestro", connection())
-            
-            if not df_maestro.empty:
-                st.dataframe(df_maestro[['nombre_actividad', 'programa_responsable', 'valor_total_actividad', 'meta_global', 'unidad_medida']], use_container_width=True)
-            else:
-                st.info("No hay actividades registradas todavía.")
-
-
-
-
-
 
         # TAB 2: SUBACTIVIDADES
         with tab2:
