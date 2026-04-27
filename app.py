@@ -30,6 +30,20 @@ def init_db():
         peso REAL,
         FOREIGN KEY(id_actividad) REFERENCES actividades_maestro(id_actividad)
     )''')
+# Tabla: ASIGNACIÓN A MUNICIPIOS
+    cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
+        id_asig INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_sub INTEGER,
+        municipio TEXT,
+        valor_asignado REAL,
+        meta_municipal REAL,
+        FOREIGN KEY(id_sub) REFERENCES subactividades(id_sub)
+    )''')
+
+
+
+
+
     conn.commit()
     conn.close()
 
@@ -54,7 +68,7 @@ else:
     # --- MÓDULO: PARAMETRIZACIÓN ---
     if menu == "⚙️ Parametrización":
         st.title("⚙️ Módulo de Parametrización")
-        tab1, tab2 = st.tabs(["1. Registro de Actividades", "2. Configuración de Subactividades"])
+        tab1, tab2, tab3 = st.tabs(["1. Registro de Actividades", "2. Configuración de Subactividades", "3. Asignación a Municipios"])
 
         # TAB 1: ACTIVIDADES
         with tab1:
@@ -223,3 +237,69 @@ else:
                             st.rerun()
                 else:
                     st.info("No hay subactividades vinculadas a esta actividad padre.")
+
+
+# --- TAB 3: ASIGNACIÓN A MUNICIPIOS ---
+        with tab3:
+            st.subheader("📍 Asignación de Presupuesto por Municipio")
+            
+            # Consultar todas las subactividades disponibles con el nombre de su actividad padre
+            df_sub_todas = pd.read_sql("""
+                SELECT s.id_sub, s.nombre_subactividad, s.valor_sub, a.nombre_actividad 
+                FROM subactividades s 
+                JOIN actividades_maestro a ON s.id_actividad = a.id_actividad
+            """, connection())
+
+            if df_sub_todas.empty:
+                st.warning("Debe configurar subactividades en la pestaña 2 antes de asignar municipios.")
+            else:
+                # Selector de subactividad
+                sub_sel_id = st.selectbox("Seleccione Subactividad:", 
+                                         df_sub_todas['id_sub'].tolist(), 
+                                         format_func=lambda x: f"{df_sub_todas[df_sub_todas['id_sub']==x]['nombre_actividad'].values[0]} >> {df_sub_todas[df_sub_todas['id_sub']==x]['nombre_subactividad'].values[0]}",
+                                         key="asig_muni_selector")
+                
+                datos_sub = df_sub_todas[df_sub_todas['id_sub'] == sub_sel_id].iloc[0]
+                
+                # Cálculos de presupuesto municipal
+                df_asig_actual = pd.read_sql(f"SELECT * FROM asignacion_municipios WHERE id_sub = {sub_sel_id}", connection())
+                valor_gastado_muni = df_asig_actual['valor_asignado'].sum()
+                saldo_muni = datos_sub['valor_sub'] - valor_gastado_muni
+
+                # Cuadros de Control
+                col_m1, col_m2 = st.columns(2)
+                col_m1.metric("Presupuesto Subactividad", f"${datos_sub['valor_sub']:,.2f}")
+                col_m2.metric("Saldo Disponible para Municipios", f"${saldo_muni:,.2f}", delta=f"-${valor_gastado_muni:,.2f} asignado", delta_color="inverse")
+
+                # Formulario de Registro
+                with st.form("form_municipio"):
+                    m1, m2, m3 = st.columns(3)
+                    muni_nombre = m1.selectbox("Municipio", ["Bucaramanga", "Floridablanca", "Girón", "Piedecuesta", "Barrancabermeja", "San Gil"])
+                    muni_valor = m2.number_input("Valor a asignar ($)", min_value=0.0, max_value=float(datos_sub['valor_sub']), step=1000.0)
+                    muni_meta = m3.number_input("Meta Municipal", min_value=0.0)
+                    
+                    if st.form_submit_button("📍 Confirmar Asignación Municipal"):
+                        if muni_valor > (saldo_muni + 0.01):
+                            st.error(f"Error: El valor supera el saldo disponible (${saldo_muni:,.2f})")
+                        else:
+                            conn = connection()
+                            conn.execute("INSERT INTO asignacion_municipios (id_sub, municipio, valor_asignado, meta_municipal) VALUES (?,?,?,?)",
+                                         (sub_sel_id, muni_nombre, muni_valor, muni_meta))
+                            conn.commit()
+                            st.success(f"Asignación exitosa para {muni_nombre}")
+                            st.rerun()
+
+                # Tabla de Visualización y Gestión
+                if not df_asig_actual.empty:
+                    st.write("---")
+                    st.write("**Asignaciones actuales por Municipio:**")
+                    st.dataframe(df_asig_actual[['id_asig', 'municipio', 'valor_asignado', 'meta_municipal']], use_container_width=True)
+
+                    # Opción para Eliminar
+                    with st.expander("🗑️ Eliminar Asignación Municipal"):
+                        id_asig_del = st.number_input("ID de asignación a eliminar:", min_value=1, step=1, key="del_asig_id")
+                        if st.button("Confirmar Borrado Municipal", type="primary"):
+                            conn = connection()
+                            conn.execute(f"DELETE FROM asignacion_municipios WHERE id_asig = {id_asig_del}")
+                            conn.commit()
+                            st.rerun()
