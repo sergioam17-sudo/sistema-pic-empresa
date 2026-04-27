@@ -93,7 +93,27 @@ else:
                 # Resumen de pesos
                 df_sub_existentes = pd.read_sql(f"SELECT * FROM subactividades WHERE id_actividad = {act_id}", connection())
                 peso_usado = df_sub_existentes['peso'].sum()
+
+                # --- NUEVO BLOQUE DE CONTROL ---
+                valor_usado = df_sub_existentes['valor_sub'].sum()
+                valor_disponible = padre['valor_total_actividad'] - valor_usado
+                peso_disponible = 1.0 - peso_usado
+
+                st.write("---")
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Presupuesto Total", f"${padre['valor_total_actividad']:,.2f}")
+                c2.metric("Peso Disponible", f"{peso_disponible:.2f}", delta=f"{peso_usado:.2f} usado", delta_color="inverse")
+                c3.metric("Saldo por Distribuir", f"${valor_disponible:,.2f}")
                 
+                if peso_usado >= 1.0:
+                    st.success("🎯 Esta actividad ya alcanzó el 100% de su peso.")
+                # --- FIN DEL BLOQUE ---
+
+
+
+
+
+
                 st.write(f"Peso actual: **{peso_usado:.2f} / 1.0**")
 
                 with st.form("form_sub"):
