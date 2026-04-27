@@ -30,16 +30,16 @@ def init_db():
         peso REAL,
         FOREIGN KEY(id_actividad) REFERENCES actividades_maestro(id_actividad)
     )''')
-# Tabla: ASIGNACIÓN A MUNICIPIOS
+# Tabla: ASIGNACIÓN A MUNICIPIOS (Actualizada con Contrato)
     cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
         id_asig INTEGER PRIMARY KEY AUTOINCREMENT,
         id_sub INTEGER,
         municipio TEXT,
+        num_contrato TEXT,
         valor_asignado REAL,
         meta_municipal REAL,
         FOREIGN KEY(id_sub) REFERENCES subactividades(id_sub)
     )''')
-
 
 
 
@@ -241,6 +241,20 @@ else:
 
 # --- TAB 3: ASIGNACIÓN A MUNICIPIOS ---
         with tab3:
+            municipios_santander = [
+                "Aguada", "Albania", "Aratoca", "Barbosa", "Barichara", "Barrancabermeja", "Betulia", "Bolívar", 
+                "Bucaramanga", "Cabrera", "California", "Capitanejo", "Carcasí", "Cepitá", "Cerrito", "Charalá", 
+                "Charta", "Chima", "Chipatá", "Cimitarra", "Concepción", "Confines", "Contratación", "Coromoro", 
+                "Curití", "El Carmen de Chucurí", "El Guacamayo", "El Peñón", "El Playón", "Encino", "Enciso", 
+                "Floridablanca", "Florián", "Galán", "Gambita", "Girón", "Guaca", "Guadalupe", "Guapotá", "Guavatá", 
+                "Güepsa", "Hato", "Jesús María", "Jordán", "La Belleza", "La Paz", "Landázuri", "Lebrija", "Los Santos", 
+                "Macaravita", "Málaga", "Matanza", "Mogotes", "Molagavita", "Ocamonte", "Oiba", "Onzaga", "Palmar", 
+                "Palmas del Socorro", "Páramo", "Piedecuesta", "Pinchote", "Puente Nacional", "Puerto Parra", 
+                "Puerto Wilches", "Rionegro", "Sabana de Torres", "San Andrés", "San Benito", "San Gil", 
+                "San Joaquín", "San José de Miranda", "San Miguel", "San Vicente de Chucurí", "Santa Bárbara", 
+                "Santa Helena del Opón", "Simacota", "Socorro", "Suaita", "Sucre", "Suratá", "Tona", "Valle de San José", 
+                "Vélez", "Vetas", "Villanueva", "Zapatoca"
+            ]
             st.subheader("📍 Asignación de Presupuesto por Municipio")
             
             # Consultar todas las subactividades disponibles con el nombre de su actividad padre
@@ -271,29 +285,33 @@ else:
                 col_m1.metric("Presupuesto Subactividad", f"${datos_sub['valor_sub']:,.2f}")
                 col_m2.metric("Saldo Disponible para Municipios", f"${saldo_muni:,.2f}", delta=f"-${valor_gastado_muni:,.2f} asignado", delta_color="inverse")
 
-                # Formulario de Registro
+                # Formulario de Registro Actualizado
                 with st.form("form_municipio"):
-                    m1, m2, m3 = st.columns(3)
-                    muni_nombre = m1.selectbox("Municipio", ["Bucaramanga", "Floridablanca", "Girón", "Piedecuesta", "Barrancabermeja", "San Gil"])
+                    m1, m2 = st.columns(2)
+                    muni_nombre = m1.selectbox("Municipio de Santander", municipios_santander)
+                    n_contrato = m1.text_input("Número de Contrato")
+                    
                     muni_valor = m2.number_input("Valor a asignar ($)", min_value=0.0, max_value=float(datos_sub['valor_sub']), step=1000.0)
-                    muni_meta = m3.number_input("Meta Municipal", min_value=0.0)
+                    muni_meta = m2.number_input("Meta Municipal", min_value=0.0)
                     
                     if st.form_submit_button("📍 Confirmar Asignación Municipal"):
                         if muni_valor > (saldo_muni + 0.01):
                             st.error(f"Error: El valor supera el saldo disponible (${saldo_muni:,.2f})")
                         else:
                             conn = connection()
-                            conn.execute("INSERT INTO asignacion_municipios (id_sub, municipio, valor_asignado, meta_municipal) VALUES (?,?,?,?)",
-                                         (sub_sel_id, muni_nombre, muni_valor, muni_meta))
+                            conn.execute("""INSERT INTO asignacion_municipios 
+                                (id_sub, municipio, num_contrato, valor_asignado, meta_municipal) 
+                                VALUES (?,?,?,?,?)""", 
+                                (sub_sel_id, muni_nombre, n_contrato, muni_valor, muni_meta))
                             conn.commit()
-                            st.success(f"Asignación exitosa para {muni_nombre}")
+                            st.success(f"Asignación exitosa para {muni_nombre} - Contrato: {n_contrato}")
                             st.rerun()
 
-                # Tabla de Visualización y Gestión
+                # Tabla de Visualización Actualizada
                 if not df_asig_actual.empty:
                     st.write("---")
                     st.write("**Asignaciones actuales por Municipio:**")
-                    st.dataframe(df_asig_actual[['id_asig', 'municipio', 'valor_asignado', 'meta_municipal']], use_container_width=True)
+                    st.dataframe(df_asig_actual[['id_asig', 'municipio', 'num_contrato', 'valor_asignado', 'meta_municipal']], use_container_width=True)
 
                     # Opción para Eliminar
                     with st.expander("🗑️ Eliminar Asignación Municipal"):
