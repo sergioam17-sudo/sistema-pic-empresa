@@ -137,12 +137,13 @@ elif rol == "SUPERVISOR":
 menu = st.sidebar.radio("Navegación", opciones)
 
 
-# --- BOTÓN PARA CAMBIAR DE PERFIL (CERRAR SESIÓN) ---
-    st.sidebar.write("---")
-    if st.sidebar.button("🔒 Cerrar Sesión / Cambiar Perfil"):
-        # Limpia la sesión para volver al formulario de acceso
-        st.session_state.clear()
-        st.rerun()
+# --- BOTÓN PARA CAMBIAR DE PERFIL (CERRAR SESIÓN) --- 
+st.sidebar.write("---") [cite: 13]
+if st.sidebar.button("🔒 Cerrar Sesión / Cambiar Perfil"): [cite: 13]
+    # Limpia la sesión para volver al formulario de acceso 
+    st.session_state.clear() [cite: 13]
+    st.rerun() [cite: 13]
+
 
     # --- MÓDULO: PARAMETRIZACIÓN ---
     if menu == "⚙️ Parametrización":
