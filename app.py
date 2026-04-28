@@ -74,6 +74,21 @@ def init_db():
 
 init_db()
 
+
+# --- CÓDIGO TEMPORAL PARA CREAR EL PRIMER USUARIO ---
+conn = connection()
+cursor = conn.cursor()
+# Verifica si ya existe el usuario para no duplicarlo
+cursor.execute("SELECT * FROM usuarios WHERE email='admin@santander.gov.co'")
+if not cursor.fetchone():
+    cursor.execute("""
+        INSERT INTO usuarios (email, password, nombre_completo, rol, municipio_asignado) 
+        VALUES ('admin@santander.gov.co', 'admin123', 'Administrador Inicial', 'DEPARTAMENTO_PARAMETRIZADOR', 'N/A')
+    """)
+    conn.commit()
+conn.close()
+
+
 municipios_santander = [
                 "Aguada", "Albania", "Aratoca", "Barbosa", "Barichara", "Barrancabermeja", "Betulia", "Bolívar", 
                 "Bucaramanga", "Cabrera", "California", "Capitanejo", "Carcasí", "Cepitá", "Cerrito", "Charalá", 
