@@ -448,8 +448,7 @@ else:
         # Consulta para ver el estado de los pagos del municipio logueado
         df_seguimiento_muni = pd.read_sql(f"""
             SELECT p.id_seguimiento, s.nombre_subactividad, p.num_pago_actual, 
-                   p.valor_calculado, p.meta_reportada, p.estado, p.acta_referente
-            FROM seguimiento_pagos p
+                   p.valor_calculado, p.avance_meta, p.estado, p.acta_referente
             JOIN asignacion_municipios a ON p.id_asig = a.id_asig
             JOIN subactividades s ON a.id_sub = s.id_sub
             WHERE a.municipio = '{muni_actual}'
