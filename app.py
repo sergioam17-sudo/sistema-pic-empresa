@@ -126,7 +126,15 @@ if 'user' not in st.session_state:
 else:
     rol = st.session_state['rol']
     st.sidebar.info(f"**Usuario:** {st.session_state['user']}\n\n**Rol:** {rol}")
-    menu = st.sidebar.radio("Navegación", ["🏠 Dashboard", "⚙️ Parametrización", "📝 Ejecución", "⚖️ Revisión", "👤 Gestión Usuarios"])
+    opciones = ["🏠 Dashboard", "📝 Ejecución"]
+if rol == "DEPARTAMENTO_PARAMETRIZADOR":
+    opciones += ["⚙️ Parametrización", "⚖️ Revisión", "👤 Gestión Usuarios"]
+elif rol == "REFERENTE_DEPARTAMENTAL":
+    opciones += ["⚖️ Revisión"]
+elif rol == "SUPERVISOR":
+    opciones += ["⚖️ Revisión"] # O las opciones que definas para el supervisor
+
+menu = st.sidebar.radio("Navegación", opciones)s"])
 
 
 # --- BOTÓN PARA CAMBIAR DE PERFIL (CERRAR SESIÓN) ---
@@ -135,33 +143,6 @@ else:
         # Limpia la sesión para volver al formulario de acceso
         st.session_state.clear()
         st.rerun()
-
-# --- MÓDULO: GESTIÓN DE USUARIOS (Solo Departamento) ---
-    elif menu == "👤 Gestión Usuarios" and rol == "DEPARTAMENTO_PARAMETRIZADOR":
-        st.title("👤 Administración de Usuarios")
-        with st.form("crear_usuario"):
-            c1, c2 = st.columns(2)
-            u_nombre = c1.text_input("Nombre Completo")
-            u_email = c1.text_input("Correo Electrónico (Usuario)")
-            u_pass = c1.text_input("Contraseña", type="password")
-            u_cedula = c2.text_input("Cédula")
-            u_cargo = c2.text_input("Cargo")
-            u_tel = c2.text_input("Teléfono")
-            u_rol = st.selectbox("Asignar Rol", ["DEPARTAMENTO_PARAMETRIZADOR", "MUNICIPIO_EJECUTOR", "REFERENTE_DEPARTAMENTAL", "SUPERVISOR"])
-            u_muni = st.selectbox("Municipio Asignado (Si aplica)", ["N/A"] + municipios_santander)
-
-            if st.form_submit_button("Registrar Usuario"):
-                conn = connection()
-                try:
-                    conn.execute("""INSERT INTO usuarios (email, password, nombre_completo, cedula, cargo, telefono, rol, municipio_asignado) 
-                                 VALUES (?,?,?,?,?,?,?,?)""", (u_email, u_pass, u_nombre, u_cedula, u_cargo, u_tel, u_rol, u_muni))
-                    conn.commit()
-                    st.success(f"Usuario {u_email} creado exitosamente.")
-                except Exception as e:
-                    st.error(f"Error al crear usuario: {e}")
-
-
-
 
     # --- MÓDULO: PARAMETRIZACIÓN ---
     if menu == "⚙️ Parametrización":
@@ -415,7 +396,7 @@ else:
             st.warning("Este módulo es exclusivo para el perfil MUNICIPIO_EJECUTOR.")
         else:
             st.title("📝 Reporte de Avance Municipal")
-            muni_user = st.selectbox("Seleccione su Municipio para reportar:", municipios_santander) 
+            muni_user = st.session_state.get('muni_asignado', 'N/A') 
             
             df_mis_asig = pd.read_sql(f"""
                 SELECT a.id_asig, m.nombre_actividad, s.nombre_subactividad, a.num_contrato, a.num_pagos, a.valor_asignado, a.meta_municipal
