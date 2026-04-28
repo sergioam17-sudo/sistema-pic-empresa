@@ -127,14 +127,14 @@ else:
     rol = st.session_state['rol']
     st.sidebar.info(f"**Usuario:** {st.session_state['user']}\n\n**Rol:** {rol}")
     opciones = ["🏠 Dashboard", "📝 Ejecución"]
-if rol == "DEPARTAMENTO_PARAMETRIZADOR":
-    opciones += ["⚙️ Parametrización", "⚖️ Revisión", "👤 Gestión Usuarios"]
-elif rol == "REFERENTE_DEPARTAMENTAL":
-    opciones += ["⚖️ Revisión"]
-elif rol == "SUPERVISOR":
-    opciones += ["⚖️ Revisión"] # O las opciones que definas para el supervisor
+    if rol == "DEPARTAMENTO_PARAMETRIZADOR":
+        opciones += ["⚙️ Parametrización", "⚖️ Revisión", "👤 Gestión Usuarios"]
+    elif rol == "REFERENTE_DEPARTAMENTAL":
+        opciones += ["⚖️ Revisión"]
+    elif rol == "SUPERVISOR":
+        opciones += ["⚖️ Revisión"] # O las opciones que definas para el supervisor
 
-menu = st.sidebar.radio("Navegación", opciones)
+    menu = st.sidebar.radio("Navegación", opciones)
 
 
 # --- BOTÓN PARA CAMBIAR DE PERFIL (CERRAR SESIÓN) --- 
