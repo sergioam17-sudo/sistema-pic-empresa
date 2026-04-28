@@ -493,3 +493,45 @@ else:
                         st.success(f"Usuario {u_email} creado exitosamente.")
                     except:
                         st.error("Error: El correo ya existe o faltan datos.")
+
+# --- VISUALIZACIÓN Y GESTIÓN DE USUARIOS EXISTENTES ---
+            st.write("---")
+            st.subheader("👥 Usuarios Registrados")
+            
+            conn = connection()
+            df_usuarios = pd.read_sql("SELECT id_usuario, nombre_completo, email, rol, municipio_asignado, cargo FROM usuarios", conn)
+            
+            if not df_usuarios.empty:
+                st.dataframe(df_usuarios, use_container_width=True)
+                
+                col_edit, col_del = st.columns(2)
+                
+                # --- OPCIÓN: ACTUALIZAR ---
+                with col_edit.expander("📝 Editar Usuario"):
+                    id_update = st.number_input("ID del usuario a editar:", min_value=1, step=1, key="upd_user_id")
+                    user_to_edit = df_usuarios[df_usuarios['id_usuario'] == id_update]
+                    
+                    if not user_to_edit.empty:
+                        new_nombre = st.text_input("Nuevo Nombre", value=user_to_edit.iloc[0]['nombre_completo'])
+                        new_rol = st.selectbox("Nuevo Rol", ["DEPARTAMENTO_PARAMETRIZADOR", "MUNICIPIO_EJECUTOR", "REFERENTE_DEPARTAMENTAL", "SUPERVISOR"], 
+                                             index=["DEPARTAMENTO_PARAMETRIZADOR", "MUNICIPIO_EJECUTOR", "REFERENTE_DEPARTAMENTAL", "SUPERVISOR"].index(user_to_edit.iloc[0]['rol']))
+                        
+                        if st.button("Guardar Cambios"):
+                            conn.execute("UPDATE usuarios SET nombre_completo=?, rol=? WHERE id_usuario=?", (new_nombre, new_rol, id_update))
+                            conn.commit()
+                            st.success("Usuario actualizado correctamente")
+                            st.rerun()
+
+                # --- OPCIÓN: ELIMINAR ---
+                with col_del.expander("🗑️ Eliminar Usuario"):
+                    id_delete = st.number_input("ID del usuario a eliminar:", min_value=1, step=1, key="del_user_id")
+                    if st.button("Confirmar Eliminación de Usuario", type="primary"):
+                        if id_delete == 1: # Protección para no borrar al admin principal
+                            st.error("No se puede eliminar el usuario administrador maestro.")
+                        else:
+                            conn.execute(f"DELETE FROM usuarios WHERE id_usuario = {id_delete}")
+                            conn.commit()
+                            st.warning(f"Usuario {id_delete} eliminado")
+                            st.rerun()
+            else:
+                st.info("No hay usuarios registrados además del administrador.")
