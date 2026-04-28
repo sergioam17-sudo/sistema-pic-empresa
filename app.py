@@ -126,7 +126,7 @@ if 'user' not in st.session_state:
 else:
     rol = st.session_state['rol']
     st.sidebar.info(f"**Usuario:** {st.session_state['user']}\n\n**Rol:** {rol}")
-    menu = st.sidebar.radio("Navegación", ["🏠 Dashboard", "⚙️ Parametrización", "📝 Ejecución", "⚖️ Revisión"])
+    menu = st.sidebar.radio("Navegación", ["🏠 Dashboard", "⚙️ Parametrización", "📝 Ejecución", "⚖️ Revisión", "👤 Gestión Usuarios"])
 
 
 # --- BOTÓN PARA CAMBIAR DE PERFIL (CERRAR SESIÓN) ---
@@ -485,3 +485,30 @@ else:
                         conn.commit()
                         st.success("Validación registrada.")
                         st.rerun()
+
+# --- MÓDULO: GESTIÓN DE USUARIOS ---
+    elif menu == "👤 Gestión Usuarios":
+        if rol != "DEPARTAMENTO_PARAMETRIZADOR":
+            st.warning("Acceso denegado.")
+        else:
+            st.title("👤 Administración de Usuarios")
+            with st.form("crear_usuario"):
+                c1, c2 = st.columns(2)
+                u_nombre = c1.text_input("Nombre Completo")
+                u_email = c1.text_input("Correo Electrónico (Usuario)")
+                u_pass = c1.text_input("Contraseña", type="password")
+                u_cedula = c2.text_input("Cédula")
+                u_cargo = c2.text_input("Cargo")
+                u_tel = c2.text_input("Teléfono")
+                u_rol = st.selectbox("Asignar Rol", ["DEPARTAMENTO_PARAMETRIZADOR", "MUNICIPIO_EJECUTOR", "REFERENTE_DEPARTAMENTAL", "SUPERVISOR"])
+                u_muni = st.selectbox("Municipio Asignado", ["N/A"] + municipios_santander)
+
+                if st.form_submit_button("Registrar Usuario"):
+                    conn = connection()
+                    try:
+                        conn.execute("""INSERT INTO usuarios (email, password, nombre_completo, cedula, cargo, telefono, rol, municipio_asignado) 
+                                     VALUES (?,?,?,?,?,?,?,?)""", (u_email, u_pass, u_nombre, u_cedula, u_cargo, u_tel, u_rol, u_muni))
+                        conn.commit()
+                        st.success(f"Usuario {u_email} creado exitosamente.")
+                    except:
+                        st.error("Error: El correo ya existe o faltan datos.")
