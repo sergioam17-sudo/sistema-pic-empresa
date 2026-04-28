@@ -42,7 +42,19 @@ def init_db():
         FOREIGN KEY(id_sub) REFERENCES subactividades(id_sub)
     )''')
 
-
+# Tabla: SEGUIMIENTO DE PAGOS
+    cursor.execute('''CREATE TABLE IF NOT EXISTS seguimiento_pagos (
+        id_seguimiento INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_asig INTEGER,
+        num_pago_actual INTEGER,
+        avance_meta REAL,
+        valor_calculado REAL,
+        soporte_municipio TEXT,
+        acta_referente TEXT,
+        estado TEXT, -- 'PENDIENTE', 'REVISADO_REFERENTE', 'APROBADO_SUPERVISOR'
+        fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(id_asig) REFERENCES asignacion_municipios(id_asig)
+    )''')
 
     conn.commit()
     conn.close()
@@ -63,7 +75,7 @@ if 'user' not in st.session_state:
 else:
     rol = st.session_state['rol']
     st.sidebar.info(f"**Usuario:** {st.session_state['user']}\n\n**Rol:** {rol}")
-    menu = st.sidebar.radio("Navegación", ["🏠 Dashboard", "⚙️ Parametrización", "📝 Ejecución"])
+    menu = st.sidebar.radio("Navegación", ["🏠 Dashboard", "⚙️ Parametrización", "📝 Ejecución", "⚖️ Revisión"])
 
     # --- MÓDULO: PARAMETRIZACIÓN ---
     if menu == "⚙️ Parametrización":
@@ -322,3 +334,81 @@ else:
                             conn.execute(f"DELETE FROM asignacion_municipios WHERE id_asig = {id_asig_del}")
                             conn.commit()
                             st.rerun()
+
+
+# --- MÓDULO: EJECUCIÓN (MUNICIPIO) ---
+    elif menu == "📝 Ejecución":
+        if rol != "MUNICIPIO_EJECUTOR":
+            st.warning("Este módulo es exclusivo para el perfil MUNICIPIO_EJECUTOR.")
+        else:
+            st.title("📝 Reporte de Avance Municipal")
+            muni_user = st.selectbox("Seleccione su Municipio para reportar:", municipios_santander) 
+            
+            df_mis_asig = pd.read_sql(f"""
+                SELECT a.id_asig, m.nombre_actividad, s.nombre_subactividad, a.num_contrato, a.num_pagos, a.valor_asignado, a.meta_municipal
+                FROM asignacion_municipios a
+                JOIN subactividades s ON a.id_sub = s.id_sub
+                JOIN actividades_maestro m ON s.id_actividad = m.id_actividad
+                WHERE a.municipio = '{muni_user}'
+            """, connection())
+
+            if df_mis_asig.empty:
+                st.info(f"No hay asignaciones pendientes para {muni_user}.")
+            else:
+                sel_asig = st.selectbox("Seleccione Actividad/Contrato a reportar:", df_mis_asig['id_asig'].tolist(), 
+                                       format_func=lambda x: f"Contrato: {df_mis_asig[df_mis_asig['id_asig']==x]['num_contrato'].values[0]} - {df_mis_asig[df_mis_asig['id_asig']==x]['nombre_subactividad'].values[0]}")
+                
+                datos = df_mis_asig[df_mis_asig['id_asig'] == sel_asig].iloc[0]
+                
+                # Consultar último pago reportado
+                df_pagos_hechos = pd.read_sql(f"SELECT MAX(num_pago_actual) as ultimo FROM seguimiento_pagos WHERE id_asig = {sel_asig}", connection())
+                ultimo_pago = df_pagos_hechos['ultimo'].iloc[0] if df_pagos_hechos['ultimo'].iloc[0] is not None else 0
+                siguiente_pago = ultimo_pago + 1
+                
+                if siguiente_pago > datos['num_pagos']:
+                    st.success("✅ Todas las cuotas de pago de esta actividad han sido reportadas.")
+                else:
+                    st.info(f"Reportando Pago N° {siguiente_pago} de {datos['num_pagos']}")
+                    with st.form("form_reporte_muni"):
+                        meta_avanc = st.number_input("Avance de Meta realizado en este periodo", min_value=0.0)
+                        # Cálculo automático del valor del pago
+                        valor_pago = datos['valor_asignado'] / datos['num_pagos']
+                        st.write(f"Valor a cobrar en este pago: **${valor_pago:,.2f}**")
+                        soporte = st.text_input("Link a carpeta de soportes (Evidencias)")
+                        
+                        if st.form_submit_button("Enviar a Revisión del Referente"):
+                            conn = connection()
+                            conn.execute("""INSERT INTO seguimiento_pagos 
+                                (id_asig, num_pago_actual, avance_meta, valor_calculado, soporte_municipio, estado) 
+                                VALUES (?,?,?,?,?,?)""", (sel_asig, siguiente_pago, meta_avanc, valor_pago, soporte, 'PENDIENTE'))
+                            conn.commit()
+                            st.success("Reporte enviado exitosamente.")
+                            st.rerun()
+
+    # --- MÓDULO: REVISIÓN (REFERENTE) ---
+    elif menu == "⚖️ Revisión":
+        if rol != "REFERENTE_DEPARTAMENTAL":
+            st.warning("Acceso exclusivo para REFERENTE_DEPARTAMENTAL.")
+        else:
+            st.title("⚖️ Validación y Carga de Actas")
+            df_pendientes = pd.read_sql("""
+                SELECT p.id_seguimiento, a.municipio, a.num_contrato, s.nombre_subactividad, p.num_pago_actual, p.valor_calculado, p.soporte_municipio
+                FROM seguimiento_pagos p
+                JOIN asignacion_municipios a ON p.id_asig = a.id_asig
+                JOIN subactividades s ON a.id_sub = s.id_sub
+                WHERE p.estado = 'PENDIENTE'
+            """, connection())
+            
+            if df_pendientes.empty:
+                st.write("No hay reportes municipales pendientes de revisión.")
+            else:
+                st.dataframe(df_pendientes, use_container_width=True)
+                with st.form("form_revision_referente"):
+                    id_rev = st.number_input("ID de Seguimiento a dar OK:", min_value=1, step=1)
+                    acta_link = st.text_input("Enlace al Acta de Conformidad (PDF)")
+                    if st.form_submit_button("Dar OK y enviar a Supervisor"):
+                        conn = connection()
+                        conn.execute("UPDATE seguimiento_pagos SET estado='REVISADO_REFERENTE', acta_referente=? WHERE id_seguimiento=?", (acta_link, id_rev))
+                        conn.commit()
+                        st.success("Validación registrada.")
+                        st.rerun()
