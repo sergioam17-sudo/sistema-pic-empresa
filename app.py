@@ -77,6 +77,15 @@ else:
     st.sidebar.info(f"**Usuario:** {st.session_state['user']}\n\n**Rol:** {rol}")
     menu = st.sidebar.radio("Navegación", ["🏠 Dashboard", "⚙️ Parametrización", "📝 Ejecución", "⚖️ Revisión"])
 
+
+# --- BOTÓN PARA CAMBIAR DE PERFIL (CERRAR SESIÓN) ---
+    st.sidebar.write("---")
+    if st.sidebar.button("🔒 Cerrar Sesión / Cambiar Perfil"):
+        # Limpia la sesión para volver al formulario de acceso
+        st.session_state.clear()
+        st.rerun()
+
+
     # --- MÓDULO: PARAMETRIZACIÓN ---
     if menu == "⚙️ Parametrización":
         st.title("⚙️ Módulo de Parametrización")
