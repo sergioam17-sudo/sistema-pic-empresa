@@ -144,6 +144,99 @@ else:
         st.session_state.clear()
         st.rerun()
 
+
+# --- MÓDULO: DASHBOARD DINÁMICO ---
+    if menu == "🏠 Dashboard":
+        st.title(f"📊 Panel de Control - {rol.replace('_', ' ')}")
+        conn = connection()
+
+        if rol == "MUNICIPIO_EJECUTOR":
+            muni_user = st.session_state.get('muni_asignado')
+            st.subheader(f"Estado de Ejecución: {muni_user}")
+
+            # Datos del Municipio [cite: 68, 69]
+            df_muni = pd.read_sql(f"""
+                SELECT a.valor_asignado, a.meta_municipal, 
+                       (SELECT SUM(valor_calculado) FROM seguimiento_pagos WHERE id_asig = a.id_asig AND estado != 'PENDIENTE') as ejecutado,
+                       (SELECT SUM(avance_meta) FROM seguimiento_pagos WHERE id_asig = a.id_asig AND estado != 'PENDIENTE') as meta_realizada
+                FROM asignacion_municipios a WHERE a.municipio = '{muni_user}'
+            """, conn)
+
+            # Métricas Principales [cite: 57, 60]
+            total_asig = df_muni['valor_asignado'].sum()
+            total_ejec = df_muni['ejecutado'].sum() or 0
+            progreso_financiero = (total_ejec / total_asig) if total_asig > 0 else 0
+
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Presupuesto Asignado", f"${total_asig:,.2f}")
+            m2.metric("Total Ejecutado (Pagos OK)", f"${total_ejec:,.2f}", delta=f"{progreso_financiero:.1%}")
+            m3.metric("Pendiente por Cobrar", f"${(total_asig - total_ejec):,.2f}")
+
+            # Gráfico de Avance [cite: 78, 80]
+            st.write("### Progreso de Metas por Actividad")
+            df_grafico = pd.read_sql(f"""
+                SELECT s.nombre_subactividad as Actividad, a.meta_municipal as Programado,
+                       SUM(p.avance_meta) as Realizado
+                FROM asignacion_municipios a
+                JOIN subactividades s ON a.id_sub = s.id_sub
+                LEFT JOIN seguimiento_pagos p ON a.id_asig = p.id_asig
+                WHERE a.municipio = '{muni_user}'
+                GROUP BY s.nombre_subactividad
+            """, conn)
+            if not df_grafico.empty:
+                st.bar_chart(df_grafico.set_index('Actividad'))
+
+        else:
+            # VISTA DEPARTAMENTAL (Parametrizador, Referente, Supervisor) [cite: 13, 81]
+            st.subheader("Análisis Global de Inversión y Cumplimiento")
+
+            # Datos Globales [cite: 20, 53, 87]
+            total_pic = pd.read_sql("SELECT SUM(valor_total_actividad) FROM actividades_maestro", conn).iloc[0,0] or 0
+            total_asig = pd.read_sql("SELECT SUM(valor_asignado) FROM asignacion_municipios", conn).iloc[0,0] or 0
+            total_pagos = pd.read_sql("SELECT SUM(valor_calculado) FROM seguimiento_pagos WHERE estado='REVISADO_REFERENTE'", conn).iloc[0,0] or 0
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Presupuesto Total PIC", f"${total_pic:,.0f}")
+            c2.metric("Asignado a Municipios", f"${total_asig:,.0f}")
+            c3.metric("Ejecución (Pagos OK)", f"${total_pagos:,.0f}")
+            c4.metric("Saldo Disponible", f"${(total_pic - total_asig):,.0f}")
+
+            # Gráficos Dinámicos [cite: 86]
+            col_left, col_right = st.columns(2)
+
+            with col_left:
+                st.write("#### 💰 Inversión por Municipio (Top 10)")
+                df_muni_inv = pd.read_sql("""
+                    SELECT municipio, SUM(valor_asignado) as inversion 
+                    FROM asignacion_municipios GROUP BY municipio ORDER BY inversion DESC LIMIT 10
+                """, conn)
+                st.bar_chart(df_muni_inv.set_index('municipio'))
+
+            with col_right:
+                st.write("#### 🚦 Estado de los Trámites de Pago")
+                df_estados = pd.read_sql("SELECT estado, COUNT(*) as cantidad FROM seguimiento_pagos GROUP BY estado", conn)
+                if not df_estados.empty:
+                    st.write(df_estados) # Tabla resumen de estados [cite: 82]
+                else:
+                    st.info("No hay trámites de pago iniciados.")
+
+            # Tabla de Alerta: Municipios con mayor atraso [cite: 65, 87]
+            st.write("#### ⚠️ Últimos Movimientos del Sistema")
+            df_ultimos = pd.read_sql("""
+                SELECT p.fecha_registro, a.municipio, s.nombre_subactividad, p.estado 
+                FROM seguimiento_pagos p
+                JOIN asignacion_municipios a ON p.id_asig = a.id_asig
+                JOIN subactividades s ON a.id_sub = s.id_sub
+                ORDER BY p.fecha_registro DESC LIMIT 5
+            """, conn)
+            st.table(df_ultimos)
+
+
+
+
+
+
+
     # --- MÓDULO: PARAMETRIZACIÓN ---
     if menu == "⚙️ Parametrización":
         st.title("⚙️ Módulo de Parametrización")
