@@ -134,7 +134,7 @@ elif rol == "REFERENTE_DEPARTAMENTAL":
 elif rol == "SUPERVISOR":
     opciones += ["⚖️ Revisión"] # O las opciones que definas para el supervisor
 
-menu = st.sidebar.radio("Navegación", opciones)s"])
+menu = st.sidebar.radio("Navegación", opciones)
 
 
 # --- BOTÓN PARA CAMBIAR DE PERFIL (CERRAR SESIÓN) ---
