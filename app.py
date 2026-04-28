@@ -439,6 +439,31 @@ else:
                             st.success("Reporte enviado exitosamente.")
                             st.rerun()
 
+
+# --- TABLA DE SEGUIMIENTO PARA MUNICIPIO ---
+        st.write("---")
+        st.subheader("📋 Historial de mis Reportes y Estados")
+        
+        muni_actual = st.session_state.get('muni_asignado')
+        # Consulta para ver el estado de los pagos del municipio logueado
+        df_seguimiento_muni = pd.read_sql(f"""
+            SELECT p.id_seguimiento, s.nombre_subactividad, p.num_pago_actual, 
+                   p.valor_calculado, p.meta_reportada, p.estado, p.acta_referente
+            FROM seguimiento_pagos p
+            JOIN asignacion_municipios a ON p.id_asig = a.id_asig
+            JOIN subactividades s ON a.id_sub = s.id_sub
+            WHERE a.municipio = '{muni_actual}'
+            ORDER BY p.id_seguimiento DESC
+        """, connection())
+
+        if not df_seguimiento_muni.empty:
+            st.dataframe(df_seguimiento_muni, use_container_width=True)
+        else:
+            st.info("No hay reportes realizados aún.")
+
+
+
+
     # --- MÓDULO: REVISIÓN (REFERENTE) ---
     elif menu == "⚖️ Revisión":
         if rol != "REFERENTE_DEPARTAMENTAL":
@@ -466,6 +491,26 @@ else:
                         conn.commit()
                         st.success("Validación registrada.")
                         st.rerun()
+
+
+# --- CONSOLIDADO GLOBAL DE PAGOS (VISTA DEPARTAMENTO) ---
+        st.write("---")
+        st.subheader("📑 Trazabilidad General de Pagos")
+        
+        df_global = pd.read_sql("""
+            SELECT p.id_seguimiento, a.municipio, s.nombre_subactividad, 
+                   p.num_pago_actual, p.valor_calculado, p.estado,
+                   p.soporte_municipio as Link_Evidencia,
+                   p.acta_referente as Link_Acta
+            FROM seguimiento_pagos p
+            JOIN asignacion_municipios a ON p.id_asig = a.id_asig
+            JOIN subactividades s ON a.id_sub = s.id_sub
+            ORDER BY p.id_seguimiento DESC
+        """, connection())
+
+        if not df_global.empty:
+            st.dataframe(df_global, use_container_width=True)
+
 
 # --- MÓDULO: GESTIÓN DE USUARIOS ---
     elif menu == "👤 Gestión Usuarios":
