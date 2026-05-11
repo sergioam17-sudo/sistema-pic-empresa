@@ -738,7 +738,7 @@ else:
         st.info("Filtre la información para generar el análisis operativo y financiero automático.")
         
         c1, c2 = st.columns(2)
-        m_sel = c1.selectbox("Seleccione Municipio", municipios_santander) [cite: 8, 9, 10]
+        m_sel = c1.selectbox("Seleccione Municipio", municipios_santander)
         p_sel = c2.selectbox("Seleccione Número de Pago/Periodo", [1, 2, 3, 4, 5, 6])
         
         if st.button("🔍 Generar Análisis y Documento Word"):
