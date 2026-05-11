@@ -43,6 +43,8 @@ def init_db():
     )''')
 
 # Tabla: SEGUIMIENTO DE PAGOS
+
+# Remplazar desde la línea 41 hasta la 51
     cursor.execute('''CREATE TABLE IF NOT EXISTS seguimiento_pagos (
         id_seguimiento INTEGER PRIMARY KEY AUTOINCREMENT,
         id_asig INTEGER,
@@ -51,10 +53,16 @@ def init_db():
         valor_calculado REAL,
         soporte_municipio TEXT,
         acta_referente TEXT,
-        estado TEXT, -- 'PENDIENTE', 'REVISADO_REFERENTE', 'APROBADO_SUPERVISOR'
+        usuario_referente TEXT, -- Nuevo campo
+        ok_supervisor INTEGER DEFAULT 0, -- Nuevo campo
+        usuario_supervisor TEXT, -- Nuevo campo
+        estado TEXT, 
         fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(id_asig) REFERENCES asignacion_municipios(id_asig)
     )''')
+
+
+
 
 # Tabla: USUARIOS DEL SISTEMA
     cursor.execute('''CREATE TABLE IF NOT EXISTS usuarios (
@@ -126,13 +134,18 @@ if 'user' not in st.session_state:
 else:
     rol = st.session_state['rol']
     st.sidebar.info(f"**Usuario:** {st.session_state['user']}\n\n**Rol:** {rol}")
+
+# Ubicación: Líneas 124-131 aprox.
     opciones = ["🏠 Dashboard", "📝 Ejecución"]
     if rol == "DEPARTAMENTO_PARAMETRIZADOR":
-        opciones += ["⚙️ Parametrización", "⚖️ Revisión", "👤 Gestión Usuarios"]
+        # Se agrega "📊 Generar Informe" a la lista del administrador [cite: 13]
+        opciones += ["⚙️ Parametrización", "⚖️ Revisión", "👤 Gestión Usuarios", "📊 Generar Informe"]
     elif rol == "REFERENTE_DEPARTAMENTAL":
-        opciones += ["⚖️ Revisión"]
+        opciones += ["⚖️ Revisión", "📊 Generar Informe"]
     elif rol == "SUPERVISOR":
-        opciones += ["⚖️ Revisión"] # O las opciones que definas para el supervisor
+        opciones += ["⚖️ Revisión", "📊 Generar Informe"]
+
+
 
     menu = st.sidebar.radio("Navegación", opciones)
 
@@ -559,33 +572,48 @@ else:
 
 
     # --- MÓDULO: REVISIÓN (REFERENTE) ---
-    elif menu == "⚖️ Revisión":
-        if rol != "REFERENTE_DEPARTAMENTAL":
-            st.warning("Acceso exclusivo para REFERENTE_DEPARTAMENTAL.")
+elif menu == "⚖️ Revisión":
+        if rol not in ["REFERENTE_DEPARTAMENTAL", "SUPERVISOR"]:
+            st.warning("Acceso restringido a perfiles de Revisión.")
         else:
-            st.title("⚖️ Validación y Carga de Actas")
-            df_pendientes = pd.read_sql("""
-                SELECT p.id_seguimiento, a.municipio, a.num_contrato, s.nombre_subactividad, p.num_pago_actual, p.valor_calculado, p.soporte_municipio
-                FROM seguimiento_pagos p
-                JOIN asignacion_municipios a ON p.id_asig = a.id_asig
-                JOIN subactividades s ON a.id_sub = s.id_sub
-                WHERE p.estado = 'PENDIENTE'
-            """, connection())
+            st.title("⚖️ Validación y Gestión de Pagos")
             
-            if df_pendientes.empty:
-                st.write("No hay reportes municipales pendientes de revisión.")
-            else:
-                st.dataframe(df_pendientes, use_container_width=True)
-                with st.form("form_revision_referente"):
-                    id_rev = st.number_input("ID de Seguimiento a dar OK:", min_value=1, step=1)
-                    acta_link = st.text_input("Enlace al Acta de Conformidad (PDF)")
-                    if st.form_submit_button("Dar OK y enviar a Supervisor"):
-                        conn = connection()
-                        conn.execute("UPDATE seguimiento_pagos SET estado='REVISADO_REFERENTE', acta_referente=? WHERE id_seguimiento=?", (acta_link, id_rev))
-                        conn.commit()
-                        st.success("Validación registrada.")
-                        st.rerun()
+            # --- SECCIÓN REFERENTE ---
+            if rol == "REFERENTE_DEPARTAMENTAL":
+                st.subheader("1. Validación Técnica (Referente)")
+                df_pendientes = pd.read_sql("SELECT p.id_seguimiento, a.municipio, a.num_contrato, s.nombre_subactividad, p.num_pago_actual, p.valor_calculado, p.soporte_municipio FROM seguimiento_pagos p JOIN asignacion_municipios a ON p.id_asig = a.id_asig JOIN subactividades s ON a.id_sub = s.id_sub WHERE p.estado = 'PENDIENTE'", connection())
+                
+                if df_pendientes.empty:
+                    st.info("No hay reportes pendientes de validación técnica.")
+                else:
+                    st.dataframe(df_pendientes, use_container_width=True)
+                    with st.form("form_revision_referente"):
+                        id_rev = st.number_input("ID de Seguimiento a dar OK Técnico:", min_value=1, step=1)
+                        acta_link = st.text_input("Enlace al Acta de Conformidad (PDF)")
+                        if st.form_submit_button("Aprobar y enviar a Supervisor"):
+                            conn = connection()
+                            conn.execute("UPDATE seguimiento_pagos SET estado='REVISADO_REFERENTE', acta_referente=?, usuario_referente=? WHERE id_seguimiento=?", (acta_link, st.session_state['user'], id_rev))
+                            conn.commit()
+                            st.success(f"OK Técnico registrado por {st.session_state['user']}")
+                            st.rerun()
 
+            # --- SECCIÓN SUPERVISOR ---
+            if rol == "SUPERVISOR":
+                st.subheader("2. Aval para Pago (Supervisor)")
+                df_a_avalar = pd.read_sql("SELECT p.id_seguimiento, a.municipio, s.nombre_subactividad, p.num_pago_actual, p.valor_calculado, p.usuario_referente, p.acta_referente FROM seguimiento_pagos p JOIN asignacion_municipios a ON p.id_asig = a.id_asig JOIN subactividades s ON a.id_sub = s.id_sub WHERE p.estado = 'REVISADO_REFERENTE' AND p.ok_supervisor = 0", connection())
+                
+                if df_a_avalar.empty:
+                    st.info("No hay pagos pendientes de aval final.")
+                else:
+                    st.dataframe(df_a_avalar, use_container_width=True)
+                    with st.form("form_aval_supervisor"):
+                        id_sup = st.number_input("ID de Seguimiento para Aval Final:", min_value=1, step=1)
+                        if st.form_submit_button("💾 Confirmar Aval y Autorizar Pago"):
+                            conn = connection()
+                            conn.execute("UPDATE seguimiento_pagos SET ok_supervisor=1, usuario_supervisor=?, estado='APROBADO_PARA_PAGO' WHERE id_seguimiento=?", (st.session_state['user'], id_sup))
+                            conn.commit()
+                            st.success(f"Aval final registrado por {st.session_state['user']}")
+                            st.rerun()
 
 # --- CONSOLIDADO GLOBAL DE PAGOS (VISTA DEPARTAMENTO) ---
         st.write("---")
@@ -674,3 +702,58 @@ else:
                             st.rerun()
             else:
                 st.info("No hay usuarios registrados además del administrador.")
+
+# --- NUEVO MÓDULO: GENERADOR DE INFORMES (Insertar al final del archivo) ---
+    elif menu == "📊 Generar Informe":
+        st.title("📄 Generador de Informes de Seguimiento PIC")
+        st.info("Filtre la información para generar el análisis operativo y financiero automático.")
+        
+        c1, c2 = st.columns(2)
+        m_sel = c1.selectbox("Seleccione Municipio", municipios_santander) [cite: 8, 9, 10]
+        p_sel = c2.selectbox("Seleccione Número de Pago/Periodo", [1, 2, 3, 4, 5, 6])
+        
+        if st.button("🔍 Generar Análisis y Documento Word"):
+            conn = connection() [cite: 1]
+            # Consulta que extrae datos de pagos, subactividades y metas [cite: 2, 4, 5]
+            df_rep = pd.read_sql(f"""
+                SELECT s.nombre_subactividad, p.avance_meta, p.valor_calculado, p.estado, p.num_pago_actual, a.meta_municipal
+                FROM seguimiento_pagos p
+                JOIN asignacion_municipios a ON p.id_asig = a.id_asig
+                JOIN subactividades s ON a.id_sub = s.id_sub
+                WHERE a.municipio = '{m_sel}' AND p.num_pago_actual = {p_sel}
+            """, conn)
+            
+            if df_rep.empty:
+                st.error("No se encontraron registros para este municipio y periodo.")
+            else:
+                from docx import Document # Importación necesaria
+                doc = Document()
+                doc.add_heading(f'Informe de Seguimiento PIC - {m_sel}', 0)
+                
+                # Análisis Automático Financiero y Operativo
+                val_ejec = df_rep['valor_calculado'].sum()
+                meta_prom = df_rep['avance_meta'].mean()
+                
+                doc.add_heading('Análisis Financiero', level=1)
+                doc.add_paragraph(f"En el periodo correspondiente al pago {p_sel}, el municipio de {m_sel} ejecutó un total de ${val_ejec:,.2f}.")
+                
+                doc.add_heading('Análisis Operativo', level=1)
+                doc.add_paragraph(f"Se evidencia un cumplimiento promedio de metas del {meta_prom:.2f}% en las actividades reportadas.")
+                
+                # Construcción de la tabla de datos en el documento
+                table = doc.add_table(rows=1, cols=3)
+                hdr_cells = table.rows[0].cells
+                hdr_cells[0].text = 'Subactividad'
+                hdr_cells[1].text = 'Avance Meta'
+                hdr_cells[2].text = 'Estado'
+                for _, row in df_rep.iterrows():
+                    row_cells = table.add_row().cells
+                    row_cells[0].text = str(row['nombre_subactividad'])
+                    row_cells[1].text = f"{row['avance_meta']}%"
+                    row_cells[2].text = str(row['estado'])
+                
+                # Guardado temporal y descarga
+                nombre_archivo = f"Informe_PIC_{m_sel}_Pago{p_sel}.docx"
+                doc.save(nombre_archivo)
+                with open(nombre_archivo, "rb") as f:
+                    st.download_button("⬇️ Descargar Informe Word", f, file_name=nombre_archivo)
