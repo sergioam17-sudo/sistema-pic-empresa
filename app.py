@@ -158,7 +158,7 @@ else:
         st.rerun()
 
 
-# --- MÓDULO: DASHBOARD DINÁMICO ---
+    # --- MÓDULO: DASHBOARD DINÁMICO ---
     if menu == "🏠 Dashboard":
         st.title(f"📊 Panel de Control - {rol.replace('_', ' ')}")
         conn = connection()
@@ -496,7 +496,7 @@ else:
                             st.rerun()
 
 
-# --- MÓDULO: EJECUCIÓN (MUNICIPIO) ---
+    # --- MÓDULO: EJECUCIÓN (MUNICIPIO) ---
     elif menu == "📝 Ejecución":
         if rol != "MUNICIPIO_EJECUTOR":
             st.warning("Este módulo es exclusivo para el perfil MUNICIPIO_EJECUTOR.")
@@ -572,48 +572,77 @@ else:
 
 
     # --- MÓDULO: REVISIÓN (REFERENTE) ---
-elif menu == "⚖️ Revisión":
-        if rol not in ["REFERENTE_DEPARTAMENTAL", "SUPERVISOR"]:
+
+# --- BUSCA LA LÍNEA 575 Y REEMPLAZA DESDE AHÍ HASTA EL SIGUIENTE ELIF ---
+    elif menu == "⚖️ Revisión":
+        if rol not in ["REFERENTE_DEPARTAMENTAL", "SUPERVISOR", "DEPARTAMENTO_PARAMETRIZADOR"]:
             st.warning("Acceso restringido a perfiles de Revisión.")
         else:
             st.title("⚖️ Validación y Gestión de Pagos")
             
-            # --- SECCIÓN REFERENTE ---
-            if rol == "REFERENTE_DEPARTAMENTAL":
-                st.subheader("1. Validación Técnica (Referente)")
-                df_pendientes = pd.read_sql("SELECT p.id_seguimiento, a.municipio, a.num_contrato, s.nombre_subactividad, p.num_pago_actual, p.valor_calculado, p.soporte_municipio FROM seguimiento_pagos p JOIN asignacion_municipios a ON p.id_asig = a.id_asig JOIN subactividades s ON a.id_sub = s.id_sub WHERE p.estado = 'PENDIENTE'", connection())
-                
-                if df_pendientes.empty:
-                    st.info("No hay reportes pendientes de validación técnica.")
-                else:
-                    st.dataframe(df_pendientes, use_container_width=True)
-                    with st.form("form_revision_referente"):
-                        id_rev = st.number_input("ID de Seguimiento a dar OK Técnico:", min_value=1, step=1)
-                        acta_link = st.text_input("Enlace al Acta de Conformidad (PDF)")
-                        if st.form_submit_button("Aprobar y enviar a Supervisor"):
-                            conn = connection()
-                            conn.execute("UPDATE seguimiento_pagos SET estado='REVISADO_REFERENTE', acta_referente=?, usuario_referente=? WHERE id_seguimiento=?", (acta_link, st.session_state['user'], id_rev))
-                            conn.commit()
-                            st.success(f"OK Técnico registrado por {st.session_state['user']}")
-                            st.rerun()
+            # --- SECCIÓN PARA REFERENTE ---
+            st.subheader("1. OK Técnico (Referente)")
+            df_pendientes = pd.read_sql("""
+                SELECT p.id_seguimiento, a.municipio, s.nombre_subactividad, p.num_pago_actual, p.valor_calculado, p.soporte_municipio 
+                FROM seguimiento_pagos p 
+                JOIN asignacion_municipios a ON p.id_asig = a.id_asig 
+                JOIN subactividades s ON a.id_sub = s.id_sub 
+                WHERE p.estado = 'PENDIENTE'
+            """, connection())
+            
+            if df_pendientes.empty:
+                st.info("No hay reportes pendientes de OK Técnico.")
+            else:
+                st.dataframe(df_pendientes)
+                with st.form("form_ok_referente"):
+                    id_rev = st.number_input("ID Seguimiento para OK Técnico:", min_value=1, step=1)
+                    acta_link = st.text_input("Enlace Acta de Conformidad (URL)")
+                    if st.form_submit_button("Dar OK Técnico"):
+                        conn = connection()
+                        # Registra el usuario que da el OK en 'usuario_referente'
+                        conn.execute("UPDATE seguimiento_pagos SET estado='REVISADO_REFERENTE', acta_referente=?, usuario_referente=? WHERE id_seguimiento=?", 
+                                     (acta_link, st.session_state['user'], id_rev))
+                        conn.commit()
+                        st.success("OK Técnico registrado. Enviado a Supervisor.")
+                        st.rerun()
 
-            # --- SECCIÓN SUPERVISOR ---
-            if rol == "SUPERVISOR":
-                st.subheader("2. Aval para Pago (Supervisor)")
-                df_a_avalar = pd.read_sql("SELECT p.id_seguimiento, a.municipio, s.nombre_subactividad, p.num_pago_actual, p.valor_calculado, p.usuario_referente, p.acta_referente FROM seguimiento_pagos p JOIN asignacion_municipios a ON p.id_asig = a.id_asig JOIN subactividades s ON a.id_sub = s.id_sub WHERE p.estado = 'REVISADO_REFERENTE' AND p.ok_supervisor = 0", connection())
+            # --- SECCIÓN PARA SUPERVISOR ---
+            st.markdown("---")
+            st.subheader("2. Aval de Pago (Supervisor)")
+            if rol in ["SUPERVISOR", "DEPARTAMENTO_PARAMETRIZADOR"]:
+                df_supervisor = pd.read_sql("""
+                    SELECT p.id_seguimiento, a.municipio, p.valor_calculado, p.acta_referente, p.usuario_referente 
+                    FROM seguimiento_pagos p 
+                    JOIN asignacion_municipios a ON p.id_asig = a.id_asig 
+                    WHERE p.estado = 'REVISADO_REFERENTE' AND p.ok_supervisor = 0
+                """, connection())
                 
-                if df_a_avalar.empty:
-                    st.info("No hay pagos pendientes de aval final.")
+                if df_supervisor.empty:
+                    st.write("No hay pagos pendientes de aval por el Supervisor.")
                 else:
-                    st.dataframe(df_a_avalar, use_container_width=True)
-                    with st.form("form_aval_supervisor"):
-                        id_sup = st.number_input("ID de Seguimiento para Aval Final:", min_value=1, step=1)
-                        if st.form_submit_button("💾 Confirmar Aval y Autorizar Pago"):
+                    st.dataframe(df_supervisor)
+                    with st.form("form_ok_supervisor"):
+                        id_sup = st.number_input("ID Seguimiento para Aval Final:", min_value=1, step=1)
+                        if st.form_submit_button("Dar OK Supervisor (Verificación de Pago)"):
                             conn = connection()
-                            conn.execute("UPDATE seguimiento_pagos SET ok_supervisor=1, usuario_supervisor=?, estado='APROBADO_PARA_PAGO' WHERE id_seguimiento=?", (st.session_state['user'], id_sup))
+                            # Registra el aval y el usuario supervisor
+                            conn.execute("UPDATE seguimiento_pagos SET ok_supervisor=1, usuario_supervisor=?, estado='APROBADO_PARA_PAGO' WHERE id_seguimiento=?", 
+                                         (st.session_state['user'], id_sup))
                             conn.commit()
-                            st.success(f"Aval final registrado por {st.session_state['user']}")
+                            st.success("Aval de supervisor registrado correctamente.")
                             st.rerun()
+            else:
+                st.info("Solo el perfil SUPERVISOR puede dar el aval final de pago.")
+
+
+
+
+
+
+
+
+
+
 
 # --- CONSOLIDADO GLOBAL DE PAGOS (VISTA DEPARTAMENTO) ---
         st.write("---")
