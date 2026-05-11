@@ -732,57 +732,56 @@ else:
             else:
                 st.info("No hay usuarios registrados además del administrador.")
 
-# --- NUEVO MÓDULO: GENERADOR DE INFORMES (Insertar al final del archivo) ---
-    elif menu == "📊 Generar Informe":
-        st.title("📄 Generador de Informes de Seguimiento PIC")
-        st.info("Filtre la información para generar el análisis operativo y financiero automático.")
+
+# --- NUEVO MÓDULO: GENERADOR DE INFORMES ---
+elif menu == "📊 Generar Informe":
+    st.title("📄 Generador de Informes de Seguimiento PIC")
+    st.info("Filtre la información para generar el análisis operativo y financiero automático.")
+    
+    c1, c2 = st.columns(2)
+    m_sel = c1.selectbox("Seleccione Municipio", municipios_santander)
+    p_sel = c2.selectbox("Seleccione Número de Pago/Periodo", [1, 2, 3, 4, 5, 6])
+    
+    if st.button("🔍 Generar Análisis y Documento Word"):
+        conn = connection()
         
-        c1, c2 = st.columns(2)
-        m_sel = c1.selectbox("Seleccione Municipio", municipios_santander)
-        p_sel = c2.selectbox("Seleccione Número de Pago/Periodo", [1, 2, 3, 4, 5, 6])
+        df_rep = pd.read_sql(f"""
+            SELECT s.nombre_subactividad, p.avance_meta, p.valor_calculado, p.estado, p.num_pago_actual, a.meta_municipal
+            FROM seguimiento_pagos p
+            JOIN asignacion_municipios a ON p.id_asig = a.id_asig
+            JOIN subactividades s ON a.id_sub = s.id_sub
+            WHERE a.municipio = '{m_sel}' AND p.num_pago_actual = {p_sel}
+        """, conn)
         
-        if st.button("🔍 Generar Análisis y Documento Word"):
-            conn = connection() [cite: 1]
-            # Consulta que extrae datos de pagos, subactividades y metas [cite: 2, 4, 5]
-            df_rep = pd.read_sql(f"""
-                SELECT s.nombre_subactividad, p.avance_meta, p.valor_calculado, p.estado, p.num_pago_actual, a.meta_municipal
-                FROM seguimiento_pagos p
-                JOIN asignacion_municipios a ON p.id_asig = a.id_asig
-                JOIN subactividades s ON a.id_sub = s.id_sub
-                WHERE a.municipio = '{m_sel}' AND p.num_pago_actual = {p_sel}
-            """, conn)
+        if df_rep.empty:
+            st.error("No se encontraron registros para este municipio y periodo.")
+        else:
+            from docx import Document 
+            doc = Document()
+            doc.add_heading(f'Informe de Seguimiento PIC - {m_sel}', 0)
             
-            if df_rep.empty:
-                st.error("No se encontraron registros para este municipio y periodo.")
-            else:
-                from docx import Document # Importación necesaria
-                doc = Document()
-                doc.add_heading(f'Informe de Seguimiento PIC - {m_sel}', 0)
-                
-                # Análisis Automático Financiero y Operativo
-                val_ejec = df_rep['valor_calculado'].sum()
-                meta_prom = df_rep['avance_meta'].mean()
-                
-                doc.add_heading('Análisis Financiero', level=1)
-                doc.add_paragraph(f"En el periodo correspondiente al pago {p_sel}, el municipio de {m_sel} ejecutó un total de ${val_ejec:,.2f}.")
-                
-                doc.add_heading('Análisis Operativo', level=1)
-                doc.add_paragraph(f"Se evidencia un cumplimiento promedio de metas del {meta_prom:.2f}% en las actividades reportadas.")
-                
-                # Construcción de la tabla de datos en el documento
-                table = doc.add_table(rows=1, cols=3)
-                hdr_cells = table.rows[0].cells
-                hdr_cells[0].text = 'Subactividad'
-                hdr_cells[1].text = 'Avance Meta'
-                hdr_cells[2].text = 'Estado'
-                for _, row in df_rep.iterrows():
-                    row_cells = table.add_row().cells
-                    row_cells[0].text = str(row['nombre_subactividad'])
-                    row_cells[1].text = f"{row['avance_meta']}%"
-                    row_cells[2].text = str(row['estado'])
-                
-                # Guardado temporal y descarga
-                nombre_archivo = f"Informe_PIC_{m_sel}_Pago{p_sel}.docx"
-                doc.save(nombre_archivo)
-                with open(nombre_archivo, "rb") as f:
-                    st.download_button("⬇️ Descargar Informe Word", f, file_name=nombre_archivo)
+            val_ejec = df_rep['valor_calculado'].sum()
+            meta_prom = df_rep['avance_meta'].mean()
+            
+            doc.add_heading('Análisis Financiero', level=1)
+            doc.add_paragraph(f"En el periodo correspondiente al pago {p_sel}, el municipio de {m_sel} ejecutó un total de ${val_ejec:,.2f}.")
+            
+            doc.add_heading('Análisis Operativo', level=1)
+            doc.add_paragraph(f"Se evidencia un cumplimiento promedio de metas del {meta_prom:.2f}% en las actividades reportadas.")
+            
+            table = doc.add_table(rows=1, cols=3)
+            hdr_cells = table.rows[0].cells
+            hdr_cells[0].text = 'Subactividad'
+            hdr_cells[1].text = 'Avance Meta'
+            hdr_cells[2].text = 'Estado'
+            
+            for _, row in df_rep.iterrows():
+                row_cells = table.add_row().cells
+                row_cells[0].text = str(row['nombre_subactividad'])
+                row_cells[1].text = f"{row['avance_meta']}%"
+                row_cells[2].text = str(row['estado'])
+            
+            nombre_archivo = f"Informe_PIC_{m_sel}_Pago{p_sel}.docx"
+            doc.save(nombre_archivo)
+            with open(nombre_archivo, "rb") as f:
+                st.download_button("⬇️ Descargar Informe Word", f, file_name=nombre_archivo)
