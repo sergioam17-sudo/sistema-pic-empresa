@@ -9,7 +9,7 @@ def connection():
     # USAMOS EL HOST DIRECTO PARA EVITAR EL TIMEOUT DEL POOLER
     USER = "postgres" 
     PASS = "ClavePic2026" # <--- Si cambiaste la clave en Supabase, ponla aquí
-    HOST = "ewsfasbgcewaarmsfqbt.supabase.co" 
+    HOST = "db.ewsfasbgcewaarmsfqbt.supabase.co" 
     PORT = "5432"
     DBNAME = "postgres"
     
