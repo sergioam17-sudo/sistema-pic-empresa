@@ -11,17 +11,19 @@ def connection():
     try:
         return psycopg2.connect(
             dbname="postgres",
-            user="postgres",
+            user="postgres.ewsfasbgcewaarmsfqbt",
             password="ClavePic2026", # <--- Asegúrate que sea la nueva
             host="aws-0-us-west-2.pooler.supabase.com", # Host del Pooler (más estable)
             port="6543", 
-            sslmode="require",
-            connect_timeout=10
+            DBNAME = "postgres"
         )
+    conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
+    
+    try:
+        return psycopg2.connect(conn_str)
     except Exception as e:
         st.error(f"❌ Error de conexión: {e}")
         return None
-
 def init_db():
     conn = connection()
     if conn is None:
