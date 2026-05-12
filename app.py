@@ -10,7 +10,7 @@ def connection():
     # Datos confirmados
     USER = "postgres"
     # REEMPLAZA ESTO: Pon tu clave real aquí entre las comillas
-    PASS = "TU_CLAVE_NUEVA" 
+    PASS = "ClavePic2026" 
     HOST = "db.ewsfasbgcewaarmsfqbt.supabase.co"
     PORT = "6543"
     DBNAME = "postgres"
