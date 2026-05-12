@@ -8,7 +8,7 @@ import os
 def connection():
     # USAMOS EL HOST DIRECTO (Más compatible con Streamlit)
     USER = "postgres" 
-    PASS = "TU_CLAVE_REAL" # Reemplaza con tu contraseña sin símbolos
+    PASS = "ClavePic2026" # Reemplaza con tu contraseña sin símbolos
     HOST = "db.ewsfasbgcewaarmsfqbt.supabase.co"
     PORT = "5432"
     DBNAME = "postgres"
