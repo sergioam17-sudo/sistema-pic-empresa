@@ -7,7 +7,7 @@ def connection():
     return psycopg2.connect(
         dbname="postgres",
         user="postgres",
-        password="w2Qr0jR9beEgj2x9", # Asegúrate de que sea la que restableciste
+        password="AdminPic2026", # Asegúrate de que sea la que restableciste
         host="ewsfasbgcewaarmsfqbt.supabase.co",
         port="6543", # Puerto alternativo más estable para la nube
         sslmode="require" # Requisito de seguridad para conexiones remotas
