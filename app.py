@@ -3,11 +3,24 @@ import pandas as pd
 import psycopg2 # Cambiar sqlite3 por psycopg2
 
 # --- 1. CONFIGURACIÓN DE BASE DE DATOS ---
+import st  # Asegúrate de tener importado streamlit como st
+
 def connection():
-    # Reemplaza 'ClavePic2026' por la que acabas de crear
-    # El :6543 es el puerto del Pooler, que es mucho más estable
-    uri = "postgresql://postgres:TU_CLAVE@db.ewsfasbgcewaarmsfqbt.supabase.co:6543/postgres?sslmode=require"
-    return psycopg2.connect(uri)
+    # DATOS CONFIRMADOS DE TU PANEL
+    USER = "postgres"
+    PASS = "ClavePic2026"  # <--- Pon aquí la que creaste en el Reset
+    HOST = "db.ewsfasbgcewaarmsfqbt.supabase.co"
+    PORT = "6543"
+    DBNAME = "postgres"
+    
+    # Construcción manual de la cadena (Método más seguro)
+    conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
+    
+    try:
+        return psycopg2.connect(conn_str)
+    except Exception as e:
+        st.error(f"Error crítico de conexión: {e}")
+        return None
 
 
 def init_db():
