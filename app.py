@@ -6,28 +6,24 @@ import os
 
 # --- 1. CONFIGURACIÓN DE BASE DE DATOS ---
 
-import streamlit as st
-import psycopg2
 
 def connection():
-    # DATOS CON EL FORMATO DE 'TENANT' CORRECTO
-    USER = "postgres.ewsfasbgcewaarmsfqbt" 
-    PASS = "TU_CLAVE_REAL" # <--- Pon aquí tu clave nueva
+    # DATOS ESTÁNDAR PARA EL POOLER
+    USER = "postgres"  # Volvemos al usuario simple
+    PASS = "TU_CLAVE_REAL" 
     HOST = "aws-0-us-west-2.pooler.supabase.com"
     PORT = "6543"
     DBNAME = "postgres"
     
-    # Construimos la URI
+    # Agregamos la contraseña directamente en la URI para evitar errores de formato
     conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
     
     try:
-        # Intentamos la conexión
         return psycopg2.connect(conn_str)
     except Exception as e:
-        # Si falla, mostramos el error y devolvemos None
         st.error(f"❌ Error de conexión: {e}")
         return None
-
+        
 def init_db():
     conn = connection()
     if conn is not None:
