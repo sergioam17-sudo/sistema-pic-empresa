@@ -6,22 +6,22 @@ import psycopg2 # Cambiar sqlite3 por psycopg2
 import st  # Asegúrate de tener importado streamlit como st
 
 def connection():
-    # DATOS CONFIRMADOS DE TU PANEL
+    # DATOS QUE YA CONFIRMAMOS
     USER = "postgres"
-    PASS = "ClavePic2026"  # <--- Pon aquí la que creaste en el Reset
+    PASS = "TU_CLAVE_NUEVA"  # <--- Asegúrate que sea la que creaste sin símbolos
     HOST = "db.ewsfasbgcewaarmsfqbt.supabase.co"
     PORT = "6543"
     DBNAME = "postgres"
     
-    # Construcción manual de la cadena (Método más seguro)
+    # Creamos la cadena de conexión
     conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
     
     try:
         return psycopg2.connect(conn_str)
     except Exception as e:
-        st.error(f"Error crítico de conexión: {e}")
+        # Esto nos mostrará el error real en la pantalla de la app
+        st.error(f"Error de conexión: {e}")
         return None
-
 
 def init_db():
     conn = connection() # [cite: 250]
