@@ -8,7 +8,7 @@ import os
 def connection():
     # USAMOS EL FORMATO DE USUARIO PARA POOLER (usuario.ID_PROYECTO)
     USER = "postgres.ewsfasbgcewaarmsfqbt" 
-    PASS = "TU_CLAVE_AQUÍ" # <--- ESCRIBE TU CONTRASEÑA REAL AQUÍ
+    PASS = "ClavePic2026" # <--- ESCRIBE TU CONTRASEÑA REAL AQUÍ
     HOST = "aws-0-us-west-2.pooler.supabase.com"
     PORT = "6543"
     DBNAME = "postgres"
@@ -129,15 +129,22 @@ if 'user' not in st.session_state:
     
     if st.sidebar.button("Ingresar"):
         conn = connection()
-        user_data = pd.read_sql(f"SELECT * FROM usuarios WHERE email='{user_input}' AND password='{pass_input}'", conn)
-        
-        if not user_data.empty:
-            st.session_state['user'] = user_data.iloc[0]['email']
-            st.session_state['rol'] = user_data.iloc[0]['rol']
-            st.session_state['muni_asignado'] = user_data.iloc[0]['municipio_asignado']
-            st.rerun()
+        if conn is not None:
+            # Consulta segura [cite: 19]
+            query = f"SELECT * FROM usuarios WHERE email='{user_input}' AND password='{pass_input}'"
+            user_data = pd.read_sql(query, conn)
+            conn.close() [cite: 13]
+            
+            if not user_data.empty:
+                st.session_state['user'] = user_data.iloc[0]['email'] [cite: 19]
+                st.session_state['rol'] = user_data.iloc[0]['rol'] [cite: 19]
+                st.session_state['muni_asignado'] = user_data.iloc[0]['municipio_asignado'] [cite: 20]
+                st.rerun()
+            else:
+                st.sidebar.error("Usuario o contraseña incorrectos.")
         else:
-            st.sidebar.error("Usuario o contraseña incorrectos.")
+            st.sidebar.error("❌ No hay conexión disponible con el servidor.")
+
 else:
     rol = st.session_state['rol']
     st.sidebar.info(f"**Usuario:** {st.session_state['user']}\n\n**Rol:** {rol}")
