@@ -1,27 +1,36 @@
 import streamlit as st
 import pandas as pd
 import psycopg2 # Cambiar sqlite3 por psycopg2
+import os
+
 
 # --- 1. CONFIGURACIÓN DE BASE DE DATOS ---
 import st  # Asegúrate de tener importado streamlit como st
 
+
 def connection():
-    # DATOS QUE YA CONFIRMAMOS
+    # Datos confirmados
     USER = "postgres"
-    PASS = "TU_CLAVE_NUEVA"  # <--- Asegúrate que sea la que creaste sin símbolos
+    # REEMPLAZA ESTO: Pon tu clave real aquí entre las comillas
+    PASS = "TU_CLAVE_NUEVA" 
     HOST = "db.ewsfasbgcewaarmsfqbt.supabase.co"
     PORT = "6543"
     DBNAME = "postgres"
     
-    # Creamos la cadena de conexión
+    # Creamos la cadena de conexión (URI)
     conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
     
     try:
         return psycopg2.connect(conn_str)
     except Exception as e:
-        # Esto nos mostrará el error real en la pantalla de la app
-        st.error(f"Error de conexión: {e}")
+        # Esto imprimirá el error real en tu pantalla de Streamlit
+        st.error(f"❌ Error de conexión: {e}")
         return None
+
+# Asegúrate de que el resto de tu código llame a connectio
+
+
+
 
 def init_db():
     conn = connection() # [cite: 250]
