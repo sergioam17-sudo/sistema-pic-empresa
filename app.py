@@ -1,21 +1,18 @@
 import streamlit as st
 import pandas as pd
-import psycopg2 # Cambiar sqlite3 por psycopg2
+import psycopg2
 import os
-
 
 # --- 1. CONFIGURACIÓN DE BASE DE DATOS ---
 
-
 def connection():
-    # DATOS ESTÁNDAR PARA EL POOLER
-    USER = "postgres"  # Volvemos al usuario simple
-    PASS = "TU_CLAVE_REAL" 
-    HOST = "aws-0-us-west-2.pooler.supabase.com"
-    PORT = "6543"
+    # USAMOS EL HOST DIRECTO (Más compatible con Streamlit)
+    USER = "postgres" 
+    PASS = "TU_CLAVE_REAL" # Reemplaza con tu contraseña sin símbolos
+    HOST = "db.ewsfasbgcewaarmsfqbt.supabase.co"
+    PORT = "5432"
     DBNAME = "postgres"
     
-    # Agregamos la contraseña directamente en la URI para evitar errores de formato
     conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
     
     try:
@@ -23,95 +20,90 @@ def connection():
     except Exception as e:
         st.error(f"❌ Error de conexión: {e}")
         return None
-        
+
 def init_db():
     conn = connection()
     if conn is not None:
         try:
             cursor = conn.cursor()
-            # Aquí va tu código de creación de tablas (CREATE TABLE...)
-            # Ejemplo:
-            # cursor.execute("CREATE TABLE IF NOT EXISTS...")
-            conn.commit()
-            cursor.close()
-            conn.close()
-            st.success("✅ Base de datos lista.")
+            
+            # --- TODAS LAS TABLAS DENTRO DEL BLOQUE TRY ---
+            # 1. Tabla Actividades
+            cursor.execute('''CREATE TABLE IF NOT EXISTS actividades_maestro (
+                id_actividad SERIAL PRIMARY KEY,
+                nombre_actividad TEXT,
+                descripcion TEXT,
+                meta_global REAL,
+                unidad_medida TEXT,
+                valor_total_actividad REAL,
+                programa_responsable TEXT
+            )''') [cite: 4, 5]
+            
+            # 2. Tabla Subactividades
+            cursor.execute('''CREATE TABLE IF NOT EXISTS subactividades (
+                id_sub SERIAL PRIMARY KEY,
+                id_actividad INTEGER,
+                nombre_subactividad TEXT,
+                valor_sub REAL,
+                meta_sub REAL,
+                unidad_medida_sub TEXT,
+                peso REAL,
+                FOREIGN KEY(id_actividad) REFERENCES actividades_maestro(id_actividad)
+            )''') [cite: 5, 6]
+
+            # 3. Tabla Asignación Municipios
+            cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
+                id_asig SERIAL PRIMARY KEY,
+                id_sub INTEGER,
+                municipio TEXT,
+                num_contrato TEXT,
+                num_pagos INTEGER,
+                valor_asignado REAL,
+                meta_municipal REAL,
+                unidad_medida_asig TEXT,
+                FOREIGN KEY(id_sub) REFERENCES subactividades(id_sub)
+            )''') [cite: 6, 7]
+
+            # 4. Tabla Seguimiento de Pagos
+            cursor.execute('''CREATE TABLE IF NOT EXISTS seguimiento_pagos (
+                id_seguimiento SERIAL PRIMARY KEY,
+                id_asig INTEGER,
+                num_pago_actual INTEGER,
+                avance_meta REAL,
+                valor_calculado REAL,
+                soporte_municipio TEXT,
+                acta_referente TEXT,
+                usuario_referente TEXT,
+                ok_supervisor INTEGER DEFAULT 0,
+                usuario_supervisor TEXT,
+                estado TEXT, 
+                fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(id_asig) REFERENCES asignacion_municipios(id_asig)
+            )''') [cite: 7, 8, 9]
+
+            # 5. Tabla Usuarios
+            cursor.execute('''CREATE TABLE IF NOT EXISTS usuarios (
+                id_usuario SERIAL PRIMARY KEY,
+                email TEXT UNIQUE,
+                password TEXT,
+                nombre_completo TEXT,
+                cedula TEXT,
+                cargo TEXT,
+                telefono TEXT,
+                rol TEXT,
+                municipio_asignado TEXT
+            )''') [cite: 10]
+
+            conn.commit() [cite: 10]
+            cursor.close() [cite: 10]
+            conn.close() [cite: 10]
+            st.success("✅ Base de datos sincronizada correctamente.") [cite: 4]
+            
         except Exception as e:
-            st.error(f"❌ Error al crear tablas: {e}")
+            st.error(f"❌ Error al crear tablas: {e}") [cite: 4]
     else:
-        st.warning("⚠️ No se pudo inicializar la BD por falta de conexión.")
+        st.warning("⚠️ No se pudo inicializar la BD por falta de conexión.") [cite: 4]
 
-
-    
-    # 1. Tabla Actividades
-    cursor.execute('''CREATE TABLE IF NOT EXISTS actividades_maestro (
-        id_actividad SERIAL PRIMARY KEY,
-        nombre_actividad TEXT,
-        descripcion TEXT,
-        meta_global REAL,
-        unidad_medida TEXT,
-        valor_total_actividad REAL,
-        programa_responsable TEXT
-    )''') # [cite: 251]
-    
-    # 2. Tabla Subactividades
-    cursor.execute('''CREATE TABLE IF NOT EXISTS subactividades (
-        id_sub SERIAL PRIMARY KEY,
-        id_actividad INTEGER,
-        nombre_subactividad TEXT,
-        valor_sub REAL,
-        meta_sub REAL,
-        unidad_medida_sub TEXT,
-        peso REAL,
-        FOREIGN KEY(id_actividad) REFERENCES actividades_maestro(id_actividad)
-    )''') # [cite: 252]
-
-    # Tabla: ASIGNACIÓN A MUNICIPIOS (Líneas 33-43 de tu Script V3)
-    cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
-        id_asig SERIAL PRIMARY KEY,
-        id_sub INTEGER,
-        municipio TEXT,
-        num_contrato TEXT,
-        num_pagos INTEGER,
-        valor_asignado REAL,
-        meta_municipal REAL,
-        unidad_medida_asig TEXT, -- Variable solicitada agregada
-        FOREIGN KEY(id_sub) REFERENCES subactividades(id_sub)
-    )''')
-
-    # 4. Tabla Seguimiento de Pagos
-    cursor.execute('''CREATE TABLE IF NOT EXISTS seguimiento_pagos (
-        id_seguimiento SERIAL PRIMARY KEY,
-        id_asig INTEGER,
-        num_pago_actual INTEGER,
-        avance_meta REAL,
-        valor_calculado REAL,
-        soporte_municipio TEXT,
-        acta_referente TEXT,
-        usuario_referente TEXT,
-        ok_supervisor INTEGER DEFAULT 0,
-        usuario_supervisor TEXT,
-        estado TEXT, 
-        fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(id_asig) REFERENCES asignacion_municipios(id_asig)
-    )''') # [cite: 254, 255]
-
-    # 5. Tabla Usuarios
-    cursor.execute('''CREATE TABLE IF NOT EXISTS usuarios (
-        id_usuario SERIAL PRIMARY KEY,
-        email TEXT UNIQUE,
-        password TEXT,
-        nombre_completo TEXT,
-        cedula TEXT,
-        cargo TEXT,
-        telefono TEXT,
-        rol TEXT,
-        municipio_asignado TEXT
-    )''') # [cite: 256]
-
-    conn.commit() # [cite: 256]
-    cursor.close() # [cite: 256]
-    conn.close() # [cite: 256]
 
 init_db()
 
