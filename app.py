@@ -13,7 +13,6 @@ def connection():
         sslmode="require" # Requisito de seguridad para conexiones remotas
     )
 
-
 def init_db():
     conn = connection() # [cite: 250]
     cursor = conn.cursor() # [cite: 250]
@@ -41,7 +40,7 @@ def init_db():
         FOREIGN KEY(id_actividad) REFERENCES actividades_maestro(id_actividad)
     )''') # [cite: 252]
 
-    # 3. Tabla Asignación a Municipios
+    # Tabla: ASIGNACIÓN A MUNICIPIOS (Líneas 33-43 de tu Script V3)
     cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
         id_asig SERIAL PRIMARY KEY,
         id_sub INTEGER,
@@ -50,9 +49,9 @@ def init_db():
         num_pagos INTEGER,
         valor_asignado REAL,
         meta_municipal REAL,
-        unidad_medida_asig TEXT,
+        unidad_medida_asig TEXT, -- Variable solicitada agregada
         FOREIGN KEY(id_sub) REFERENCES subactividades(id_sub)
-    )''') # [cite: 253]
+    )''')
 
     # 4. Tabla Seguimiento de Pagos
     cursor.execute('''CREATE TABLE IF NOT EXISTS seguimiento_pagos (
