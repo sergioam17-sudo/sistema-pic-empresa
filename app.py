@@ -13,10 +13,10 @@ def connection():
     )
 
 def init_db():
-    conn = connection()
-    cursor = conn.cursor()
+    conn = connection() # [cite: 250]
+    cursor = conn.cursor() # [cite: 250]
     
-    # Tabla Actividades (PADRE) - Ajustada para PostgreSQL
+    # 1. Tabla Actividades
     cursor.execute('''CREATE TABLE IF NOT EXISTS actividades_maestro (
         id_actividad SERIAL PRIMARY KEY,
         nombre_actividad TEXT,
@@ -25,9 +25,9 @@ def init_db():
         unidad_medida TEXT,
         valor_total_actividad REAL,
         programa_responsable TEXT
-    )''')
+    )''') # [cite: 251]
     
-    # Tabla Subactividades (HIJO) - Ajustada para PostgreSQL
+    # 2. Tabla Subactividades
     cursor.execute('''CREATE TABLE IF NOT EXISTS subactividades (
         id_sub SERIAL PRIMARY KEY,
         id_actividad INTEGER,
@@ -37,9 +37,9 @@ def init_db():
         unidad_medida_sub TEXT,
         peso REAL,
         FOREIGN KEY(id_actividad) REFERENCES actividades_maestro(id_actividad)
-    )''')
+    )''') # [cite: 252]
 
-    # Tabla: ASIGNACIÓN A MUNICIPIOS - Ahora correctamente indentada dentro de init_db()
+    # 3. Tabla Asignación a Municipios
     cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
         id_asig SERIAL PRIMARY KEY,
         id_sub INTEGER,
@@ -50,9 +50,9 @@ def init_db():
         meta_municipal REAL,
         unidad_medida_asig TEXT,
         FOREIGN KEY(id_sub) REFERENCES subactividades(id_sub)
-    )''')
+    )''') # [cite: 253]
 
-    # Tabla: SEGUIMIENTO DE PAGOS - Ajustada para PostgreSQL
+    # 4. Tabla Seguimiento de Pagos
     cursor.execute('''CREATE TABLE IF NOT EXISTS seguimiento_pagos (
         id_seguimiento SERIAL PRIMARY KEY,
         id_asig INTEGER,
@@ -67,9 +67,9 @@ def init_db():
         estado TEXT, 
         fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(id_asig) REFERENCES asignacion_municipios(id_asig)
-    )''')
+    )''') # [cite: 254, 255]
 
-    # Tabla: USUARIOS DEL SISTEMA - Ajustada para PostgreSQL
+    # 5. Tabla Usuarios
     cursor.execute('''CREATE TABLE IF NOT EXISTS usuarios (
         id_usuario SERIAL PRIMARY KEY,
         email TEXT UNIQUE,
@@ -80,12 +80,11 @@ def init_db():
         telefono TEXT,
         rol TEXT,
         municipio_asignado TEXT
-    )''')
+    )''') # [cite: 256]
 
-    conn.commit()
-    cursor.close()
-    conn.close()
-
+    conn.commit() # [cite: 256]
+    cursor.close() # [cite: 256]
+    conn.close() # [cite: 256]
 
 init_db()
 
