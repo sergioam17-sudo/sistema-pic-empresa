@@ -15,9 +15,10 @@ def connection():
 def init_db():
     conn = connection()
     cursor = conn.cursor()
-    # Tabla Actividades (PADRE) con Unidad de Medida
+    
+    # Tabla Actividades (PADRE) - Ajustada para PostgreSQL
     cursor.execute('''CREATE TABLE IF NOT EXISTS actividades_maestro (
-        id_actividad INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_actividad SERIAL PRIMARY KEY,
         nombre_actividad TEXT,
         descripcion TEXT,
         meta_global REAL,
@@ -25,9 +26,10 @@ def init_db():
         valor_total_actividad REAL,
         programa_responsable TEXT
     )''')
-    # Tabla Subactividades (HIJO) con Unidad de Medida
+    
+    # Tabla Subactividades (HIJO) - Ajustada para PostgreSQL
     cursor.execute('''CREATE TABLE IF NOT EXISTS subactividades (
-        id_sub INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_sub SERIAL PRIMARY KEY,
         id_actividad INTEGER,
         nombre_subactividad TEXT,
         valor_sub REAL,
@@ -36,8 +38,9 @@ def init_db():
         peso REAL,
         FOREIGN KEY(id_actividad) REFERENCES actividades_maestro(id_actividad)
     )''')
-# Tabla: ASIGNACIÓN A MUNICIPIOS (Actualizada con Contrato y Pagos)
-cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
+
+    # Tabla: ASIGNACIÓN A MUNICIPIOS - Ahora correctamente indentada dentro de init_db()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
         id_asig SERIAL PRIMARY KEY,
         id_sub INTEGER,
         municipio TEXT,
@@ -45,36 +48,30 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
         num_pagos INTEGER,
         valor_asignado REAL,
         meta_municipal REAL,
-        unidad_medida_asig TEXT, -- Nueva variable agregada
+        unidad_medida_asig TEXT,
         FOREIGN KEY(id_sub) REFERENCES subactividades(id_sub)
     )''')
 
-
-# Tabla: SEGUIMIENTO DE PAGOS
-
-# Remplazar desde la línea 41 hasta la 51
+    # Tabla: SEGUIMIENTO DE PAGOS - Ajustada para PostgreSQL
     cursor.execute('''CREATE TABLE IF NOT EXISTS seguimiento_pagos (
-        id_seguimiento INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_seguimiento SERIAL PRIMARY KEY,
         id_asig INTEGER,
         num_pago_actual INTEGER,
         avance_meta REAL,
         valor_calculado REAL,
         soporte_municipio TEXT,
         acta_referente TEXT,
-        usuario_referente TEXT, -- Nuevo campo
-        ok_supervisor INTEGER DEFAULT 0, -- Nuevo campo
-        usuario_supervisor TEXT, -- Nuevo campo
+        usuario_referente TEXT,
+        ok_supervisor INTEGER DEFAULT 0,
+        usuario_supervisor TEXT,
         estado TEXT, 
-        fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
+        fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(id_asig) REFERENCES asignacion_municipios(id_asig)
     )''')
 
-
-
-
-# Tabla: USUARIOS DEL SISTEMA
+    # Tabla: USUARIOS DEL SISTEMA - Ajustada para PostgreSQL
     cursor.execute('''CREATE TABLE IF NOT EXISTS usuarios (
-        id_usuario INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_usuario SERIAL PRIMARY KEY,
         email TEXT UNIQUE,
         password TEXT,
         nombre_completo TEXT,
@@ -82,11 +79,13 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
         cargo TEXT,
         telefono TEXT,
         rol TEXT,
-        municipio_asignado TEXT -- Solo para MUNICIPIO_EJECUTOR
+        municipio_asignado TEXT
     )''')
 
     conn.commit()
+    cursor.close()
     conn.close()
+
 
 init_db()
 
