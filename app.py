@@ -811,6 +811,3 @@ else:
                 with open(nombre_archivo, "rb") as f:
                     st.download_button("⬇️ Descargar Informe Word", f, file_name=nombre_archivo)
 
-# Al final de tu archivo, asegúrate de llamar a las funciones así:
-if __name__ == "__main__":
-    init_db()
