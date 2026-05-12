@@ -6,11 +6,11 @@ import os
 # --- 1. CONFIGURACIÓN DE BASE DE DATOS ---
 
 def connection():
-    # USAMOS EL HOST DIRECTO (Más compatible con Streamlit)
-    USER = "postgres" 
-    PASS = "ClavePic2026" # Reemplaza con tu contraseña sin símbolos
-    HOST = "db.ewsfasbgcewaarmsfqbt.supabase.co"
-    PORT = "5432"
+    # USAMOS EL FORMATO DE USUARIO PARA POOLER (usuario.ID_PROYECTO)
+    USER = "postgres.ewsfasbgcewaarmsfqbt" 
+    PASS = "ClavePic2026" # <--- REEMPLAZA ESTO CON TU CLAVE REAL
+    HOST = "aws-0-us-west-2.pooler.supabase.com"
+    PORT = "6543"
     DBNAME = "postgres"
     
     conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
@@ -18,7 +18,7 @@ def connection():
     try:
         return psycopg2.connect(conn_str)
     except Exception as e:
-        st.error(f"❌ Error de conexión: {e}")
+        # El error se captura pero no bloquea la app aquí
         return None
 
 def init_db():
@@ -27,7 +27,6 @@ def init_db():
         try:
             cursor = conn.cursor()
             
-            # --- TODAS LAS TABLAS DENTRO DEL BLOQUE TRY ---
             # 1. Tabla Actividades
             cursor.execute('''CREATE TABLE IF NOT EXISTS actividades_maestro (
                 id_actividad SERIAL PRIMARY KEY,
@@ -37,7 +36,7 @@ def init_db():
                 unidad_medida TEXT,
                 valor_total_actividad REAL,
                 programa_responsable TEXT
-            )''') [cite: 4, 5]
+            )''') 
             
             # 2. Tabla Subactividades
             cursor.execute('''CREATE TABLE IF NOT EXISTS subactividades (
@@ -49,7 +48,7 @@ def init_db():
                 unidad_medida_sub TEXT,
                 peso REAL,
                 FOREIGN KEY(id_actividad) REFERENCES actividades_maestro(id_actividad)
-            )''') [cite: 5, 6]
+            )''')
 
             # 3. Tabla Asignación Municipios
             cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
@@ -62,7 +61,7 @@ def init_db():
                 meta_municipal REAL,
                 unidad_medida_asig TEXT,
                 FOREIGN KEY(id_sub) REFERENCES subactividades(id_sub)
-            )''') [cite: 6, 7]
+            )''')
 
             # 4. Tabla Seguimiento de Pagos
             cursor.execute('''CREATE TABLE IF NOT EXISTS seguimiento_pagos (
@@ -79,7 +78,7 @@ def init_db():
                 estado TEXT, 
                 fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(id_asig) REFERENCES asignacion_municipios(id_asig)
-            )''') [cite: 7, 8, 9]
+            )''')
 
             # 5. Tabla Usuarios
             cursor.execute('''CREATE TABLE IF NOT EXISTS usuarios (
@@ -92,50 +91,30 @@ def init_db():
                 telefono TEXT,
                 rol TEXT,
                 municipio_asignado TEXT
-            )''') [cite: 10]
+            )''')
 
-            conn.commit() [cite: 10]
-            cursor.close() [cite: 10]
-            conn.close() [cite: 10]
-            st.success("✅ Base de datos sincronizada correctamente.") [cite: 4]
+            # --- CREACIÓN DEL USUARIO ADMIN ---
+            cursor.execute("SELECT * FROM usuarios WHERE email='admin@santander.gov.co'")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    INSERT INTO usuarios (email, password, nombre_completo, rol, municipio_asignado) 
+                    VALUES ('admin@santander.gov.co', 'admin123', 'Administrador Inicial', 'DEPARTAMENTO_PARAMETRIZADOR', 'N/A')
+                """)
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            st.success("✅ Base de datos sincronizada correctamente.")
             
         except Exception as e:
-            st.error(f"❌ Error al crear tablas: {e}") [cite: 4]
+            st.error(f"❌ Error al crear tablas: {e}")
     else:
-        st.warning("⚠️ No se pudo inicializar la BD por falta de conexión.") [cite: 4]
+        st.sidebar.error("⚠️ Error de conexión: Verifica las credenciales en el código.")
 
-
+# --- INICIALIZACIÓN ---
 init_db()
 
-
-# --- CÓDIGO TEMPORAL PARA CREAR EL PRIMER USUARIO ---
-conn = connection()
-cursor = conn.cursor()
-# Verifica si ya existe el usuario para no duplicarlo
-cursor.execute("SELECT * FROM usuarios WHERE email='admin@santander.gov.co'")
-if not cursor.fetchone():
-    cursor.execute("""
-        INSERT INTO usuarios (email, password, nombre_completo, rol, municipio_asignado) 
-        VALUES ('admin@santander.gov.co', 'admin123', 'Administrador Inicial', 'DEPARTAMENTO_PARAMETRIZADOR', 'N/A')
-    """)
-    conn.commit()
-conn.close()
-
-
-municipios_santander = [
-                "Aguada", "Albania", "Aratoca", "Barbosa", "Barichara", "Barrancabermeja", "Betulia", "Bolívar", 
-                "Bucaramanga", "Cabrera", "California", "Capitanejo", "Carcasí", "Cepitá", "Cerrito", "Charalá", 
-                "Charta", "Chima", "Chipatá", "Cimitarra", "Concepción", "Confines", "Contratación", "Coromoro", 
-                "Curití", "El Carmen de Chucurí", "El Guacamayo", "El Peñón", "El Playón", "Encino", "Enciso", 
-                "Floridablanca", "Florián", "Galán", "Gambita", "Girón", "Guaca", "Guadalupe", "Guapotá", "Guavatá", 
-                "Güepsa", "Hato", "Jesús María", "Jordán", "La Belleza", "La Paz", "Landázuri", "Lebrija", "Los Santos", 
-                "Macaravita", "Málaga", "Matanza", "Mogotes", "Molagavita", "Ocamonte", "Oiba", "Onzaga", "Palmar", 
-                "Palmas del Socorro", "Páramo", "Piedecuesta", "Pinchote", "Puente Nacional", "Puerto Parra", 
-                "Puerto Wilches", "Rionegro", "Sabana de Torres", "San Andrés", "San Benito", "San Gil", 
-                "San Joaquín", "San José de Miranda", "San Miguel", "San Vicente de Chucurí", "Santa Bárbara", 
-                "Santa Helena del Opón", "Simacota", "Socorro", "Suaita", "Sucre", "Suratá", "Tona", "Valle de San José", 
-                "Vélez", "Vetas", "Villanueva", "Zapatoca"
-            ]
+# --- 2. CONFIGURACIÓN DE LA INTERFAZ ---
 
 # --- 2. CONFIGURACIÓN DE LA INTERFAZ ---
 st.set_page_config(page_title="Sistema PIC - Unidad de Medida", layout="wide")
