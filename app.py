@@ -1,10 +1,16 @@
 import streamlit as st
 import pandas as pd
-import sqlite3
+import psycopg2 # Cambiar sqlite3 por psycopg2
 
 # --- 1. CONFIGURACIÓN DE BASE DE DATOS ---
 def connection():
-    return sqlite3.connect('pic_gestion.db', check_same_thread=False)
+    return psycopg2.connect(
+        dbname="postgres",
+        user="postgres",
+        password="x4CFT0yNjj7L4nHQ", 
+        host="ewsfasbgcewaarmsfqbt.supabase.co",
+        port="5432"
+    )
 
 def init_db():
     conn = connection()
@@ -31,16 +37,18 @@ def init_db():
         FOREIGN KEY(id_actividad) REFERENCES actividades_maestro(id_actividad)
     )''')
 # Tabla: ASIGNACIÓN A MUNICIPIOS (Actualizada con Contrato y Pagos)
-    cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
-        id_asig INTEGER PRIMARY KEY AUTOINCREMENT,
+cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
+        id_asig SERIAL PRIMARY KEY,
         id_sub INTEGER,
         municipio TEXT,
         num_contrato TEXT,
         num_pagos INTEGER,
         valor_asignado REAL,
         meta_municipal REAL,
+        unidad_medida_asig TEXT, -- Nueva variable agregada
         FOREIGN KEY(id_sub) REFERENCES subactividades(id_sub)
     )''')
+
 
 # Tabla: SEGUIMIENTO DE PAGOS
 
@@ -274,7 +282,7 @@ else:
                     conn = connection()
                     conn.execute("""INSERT INTO actividades_maestro 
                         (nombre_actividad, descripcion, meta_global, unidad_medida, valor_total_actividad, programa_responsable) 
-                        VALUES (?,?,?,?,?,?)""", (nombre_a, desc_a, meta_a, unidad_a, val_total, prog))
+                        VALUES (%s, %s, %s, %s, %s, %s)""", (nombre_a, desc_a, meta_a, unidad_a, val_total, prog))
                     conn.commit()
                     st.success("✅ Actividad guardada.")
 
@@ -362,7 +370,7 @@ else:
                             conn = connection()
                             conn.execute("""INSERT INTO subactividades 
                                 (id_actividad, nombre_subactividad, valor_sub, meta_sub, unidad_medida_sub, peso) 
-                                VALUES (?,?,?,?,?,?)""", (act_id, sub_nombre, sub_valor, sub_meta, sub_unidad, sub_peso))
+                                VALUES (%s, %s, %s, %s, %s, %s)""", (act_id, sub_nombre, sub_valor, sub_meta, sub_unidad, sub_peso))
                             conn.commit()
                             st.success("✅ Subactividad agregada.")
                             st.rerun()
@@ -403,8 +411,8 @@ else:
                                     else:
                                         conn = connection()
                                         conn.execute("""UPDATE subactividades SET 
-                                            nombre_subactividad=?, meta_sub=?, peso=?, valor_sub=? 
-                                            WHERE id_sub=?""", (new_nom, new_meta, new_peso, new_val, id_edit))
+                                            nombre_subactividad=%s, meta_sub=%s, peso=%s, valor_sub=%s 
+                                            WHERE id_sub=%s""", (new_nom, new_meta, new_peso, new_val, id_edit))
                                         conn.commit()
                                         st.success("Subactividad actualizada")
                                         st.rerun()
@@ -466,6 +474,12 @@ else:
                     
                     muni_valor = m2.number_input("Valor a asignar ($)", min_value=0.0, max_value=float(datos_sub['valor_sub']), step=1000.0)
                     muni_meta = m2.number_input("Meta Municipal", min_value=0.0)
+                    # Nueva variable Unidad después de Meta
+                    muni_unidad = m2.text_input("Unidad de Medida (ej: Personas, Talleres)")
+
+
+
+
                     
                     if st.form_submit_button("📍 Confirmar Asignación Municipal"):
                         if muni_valor > (saldo_muni + 0.01):
@@ -473,9 +487,9 @@ else:
                         else:
                             conn = connection()
                             conn.execute("""INSERT INTO asignacion_municipios 
-                                (id_sub, municipio, num_contrato, num_pagos, valor_asignado, meta_municipal) 
-                                VALUES (?,?,?,?,?,?)""", 
-                                (sub_sel_id, muni_nombre, n_contrato, n_pagos, muni_valor, muni_meta))
+                                (id_sub, municipio, num_contrato, num_pagos, valor_asignado, meta_municipal, unidad_medida_asig) 
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)""", 
+                                (sub_sel_id, muni_nombre, n_contrato, n_pagos, muni_valor, muni_meta, muni_unidad))
                             conn.commit()
                             st.success(f"Asignación exitosa para {muni_nombre}")
                             st.rerun()
@@ -484,7 +498,8 @@ else:
                 if not df_asig_actual.empty:
                     st.write("---")
                     st.write("**Asignaciones actuales por Municipio:**")
-                    st.dataframe(df_asig_actual[['id_asig', 'municipio', 'num_contrato', 'num_pagos', 'valor_asignado', 'meta_municipal']], use_container_width=True)
+                    # Agregar 'unidad_medida_asig' al dataframe para que se vea
+                    st.dataframe(df_asig_actual[['id_asig', 'municipio', 'num_contrato', 'num_pagos', 'valor_asignado', 'meta_municipal', 'unidad_medida_asig']], use_container_width=True)
 
                     # Opción para Eliminar
                     with st.expander("🗑️ Eliminar Asignación Municipal"):
@@ -540,7 +555,7 @@ else:
                             conn = connection()
                             conn.execute("""INSERT INTO seguimiento_pagos 
                                 (id_asig, num_pago_actual, avance_meta, valor_calculado, soporte_municipio, estado) 
-                                VALUES (?,?,?,?,?,?)""", (sel_asig, siguiente_pago, meta_avanc, valor_pago, soporte, 'PENDIENTE'))
+                                VALUES (%s, %s, %s, %s, %s, %s)""", (sel_asig, siguiente_pago, meta_avanc, valor_pago, soporte, 'PENDIENTE'))
                             conn.commit()
                             st.success("Reporte enviado exitosamente.")
                             st.rerun()
@@ -600,7 +615,7 @@ else:
                     if st.form_submit_button("Dar OK Técnico"):
                         conn = connection()
                         # Registra el usuario que da el OK en 'usuario_referente'
-                        conn.execute("UPDATE seguimiento_pagos SET estado='REVISADO_REFERENTE', acta_referente=?, usuario_referente=? WHERE id_seguimiento=?", 
+                        conn.execute("UPDATE seguimiento_pagos SET estado='REVISADO_REFERENTE', acta_referente=%s, usuario_referente=%s WHERE id_seguimiento=%s", 
                                      (acta_link, st.session_state['user'], id_rev))
                         conn.commit()
                         st.success("OK Técnico registrado. Enviado a Supervisor.")
@@ -626,7 +641,7 @@ else:
                         if st.form_submit_button("Dar OK Supervisor (Verificación de Pago)"):
                             conn = connection()
                             # Registra el aval y el usuario supervisor
-                            conn.execute("UPDATE seguimiento_pagos SET ok_supervisor=1, usuario_supervisor=?, estado='APROBADO_PARA_PAGO' WHERE id_seguimiento=?", 
+                            conn.execute("UPDATE seguimiento_pagos SET ok_supervisor=1, usuario_supervisor=%s, estado='APROBADO_PARA_PAGO' WHERE id_seguimiento=%s", 
                                          (st.session_state['user'], id_sup))
                             conn.commit()
                             st.success("Aval de supervisor registrado correctamente.")
@@ -684,7 +699,7 @@ else:
                     conn = connection()
                     try:
                         conn.execute("""INSERT INTO usuarios (email, password, nombre_completo, cedula, cargo, telefono, rol, municipio_asignado) 
-                                     VALUES (?,?,?,?,?,?,?,?)""", (u_email, u_pass, u_nombre, u_cedula, u_cargo, u_tel, u_rol, u_muni))
+                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""", (u_email, u_pass, u_nombre, u_cedula, u_cargo, u_tel, u_rol, u_muni))
                         conn.commit()
                         st.success(f"Usuario {u_email} creado exitosamente.")
                     except:
@@ -713,7 +728,7 @@ else:
                                              index=["DEPARTAMENTO_PARAMETRIZADOR", "MUNICIPIO_EJECUTOR", "REFERENTE_DEPARTAMENTAL", "SUPERVISOR"].index(user_to_edit.iloc[0]['rol']))
                         
                         if st.button("Guardar Cambios"):
-                            conn.execute("UPDATE usuarios SET nombre_completo=?, rol=? WHERE id_usuario=?", (new_nombre, new_rol, id_update))
+                            conn.execute("UPDATE usuarios SET nombre_completo=%s, rol=%s WHERE id_usuario=%s", (new_nombre, new_rol, id_update))
                             conn.commit()
                             st.success("Usuario actualizado correctamente")
                             st.rerun()
