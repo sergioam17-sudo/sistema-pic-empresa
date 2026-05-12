@@ -6,35 +6,45 @@ import os
 
 # --- 1. CONFIGURACIÓN DE BASE DE DATOS ---
 
+import streamlit as st
+import psycopg2
+
 def connection():
-    # DATOS REVISADOS PARA EVITAR EL TIMEOUT
-    try:
-        return psycopg2.connect(
-            dbname="postgres",
-            user="postgres.ewsfasbgcewaarmsfqbt",
-            password="ClavePic2026", # <--- Asegúrate que sea la nueva
-            host="aws-0-us-west-2.pooler.supabase.com", # Host del Pooler (más estable)
-            port="6543", 
-            DBNAME = "postgres"
-        )
+    # DATOS CON EL FORMATO DE 'TENANT' CORRECTO
+    USER = "postgres.ewsfasbgcewaarmsfqbt" 
+    PASS = "TU_CLAVE_REAL" # <--- Pon aquí tu clave nueva
+    HOST = "aws-0-us-west-2.pooler.supabase.com"
+    PORT = "6543"
+    DBNAME = "postgres"
+    
+    # Construimos la URI
     conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
     
     try:
+        # Intentamos la conexión
         return psycopg2.connect(conn_str)
     except Exception as e:
+        # Si falla, mostramos el error y devolvemos None
         st.error(f"❌ Error de conexión: {e}")
         return None
+
 def init_db():
     conn = connection()
-    if conn is None:
-        st.error("No se pudo establecer la conexión inicial.")
-        return # Evita el error de 'NoneType'
-    
-    cursor = conn.cursor()
-    # ... tu código de tablas aquí ...
-    conn.commit()
-    cursor.close()
-    conn.close()
+    if conn is not None:
+        try:
+            cursor = conn.cursor()
+            # Aquí va tu código de creación de tablas (CREATE TABLE...)
+            # Ejemplo:
+            # cursor.execute("CREATE TABLE IF NOT EXISTS...")
+            conn.commit()
+            cursor.close()
+            conn.close()
+            st.success("✅ Base de datos lista.")
+        except Exception as e:
+            st.error(f"❌ Error al crear tablas: {e}")
+    else:
+        st.warning("⚠️ No se pudo inicializar la BD por falta de conexión.")
+
 
     
     # 1. Tabla Actividades
@@ -822,3 +832,7 @@ else:
                 doc.save(nombre_archivo)
                 with open(nombre_archivo, "rb") as f:
                     st.download_button("⬇️ Descargar Informe Word", f, file_name=nombre_archivo)
+
+# Al final de tu archivo, asegúrate de llamar a las funciones así:
+if __name__ == "__main__":
+    init_db()
