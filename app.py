@@ -6,7 +6,7 @@ import os
 # --- 1. CONFIGURACIÓN DE BASE DE DATOS ---
 
 def connection():
-    # USAMOS EL FORMATO DE USUARIO PARA POOLER (usuario.ID_PROYECTO)
+    # USAMOS EL FORMATO DE USUARIO PARA POOLER (usuario.ID_PROYECTO) 
     USER = "postgres.ewsfasbgcewaarmsfqbt" 
     PASS = "ClavePic2026" 
     HOST = "aws-0-us-west-2.pooler.supabase.com"
@@ -16,7 +16,7 @@ def connection():
     conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
     
     try:
-        # connect_timeout ayuda a que la app no se quede "pegada" si no hay red [cite: 1]
+        # connect_timeout ayuda a que la app no se quede "pegada" si no hay red [cite: 1, 2]
         return psycopg2.connect(conn_str, connect_timeout=10)
     except Exception:
         return None
@@ -109,14 +109,14 @@ def init_db():
         except Exception as e:
             st.error(f"❌ Error al crear tablas: {e}") [cite: 15]
     else:
-        # Mensaje estático para evitar errores de contexto de Streamlit 
+        # Se muestra la advertencia pero se evita el NameError 
         st.warning("⚠️ Sin conexión a la BD. Verifica el Host/Clave en Supabase.") [cite: 16]
 
 # --- INICIALIZACIÓN AUTOMÁTICA ---
 if __name__ == "__main__":
     init_db() [cite: 16]
 
-
+# --- 2. CONFIGURACIÓN DE LA INTERFAZ ---
 
 
 
