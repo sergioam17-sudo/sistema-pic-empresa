@@ -8,7 +8,7 @@ import os
 def connection():
     # USAMOS EL FORMATO DE USUARIO PARA POOLER (usuario.ID_PROYECTO)
     USER = "postgres.ewsfasbgcewaarmsfqbt" 
-    PASS = "ClavePic2026" # <--- REEMPLAZA ESTO CON TU CLAVE REAL
+    PASS = "TU_CLAVE_AQUÍ" # <--- ESCRIBE TU CONTRASEÑA REAL AQUÍ
     HOST = "aws-0-us-west-2.pooler.supabase.com"
     PORT = "6543"
     DBNAME = "postgres"
@@ -18,7 +18,6 @@ def connection():
     try:
         return psycopg2.connect(conn_str)
     except Exception as e:
-        # El error se captura pero no bloquea la app aquí
         return None
 
 def init_db():
@@ -27,7 +26,7 @@ def init_db():
         try:
             cursor = conn.cursor()
             
-            # 1. Tabla Actividades
+            # 1. Tabla Actividades [cite: 3]
             cursor.execute('''CREATE TABLE IF NOT EXISTS actividades_maestro (
                 id_actividad SERIAL PRIMARY KEY,
                 nombre_actividad TEXT,
@@ -38,7 +37,7 @@ def init_db():
                 programa_responsable TEXT
             )''') 
             
-            # 2. Tabla Subactividades
+            # 2. Tabla Subactividades [cite: 5]
             cursor.execute('''CREATE TABLE IF NOT EXISTS subactividades (
                 id_sub SERIAL PRIMARY KEY,
                 id_actividad INTEGER,
@@ -50,7 +49,7 @@ def init_db():
                 FOREIGN KEY(id_actividad) REFERENCES actividades_maestro(id_actividad)
             )''')
 
-            # 3. Tabla Asignación Municipios
+            # 3. Tabla Asignación Municipios [cite: 6]
             cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
                 id_asig SERIAL PRIMARY KEY,
                 id_sub INTEGER,
@@ -63,7 +62,7 @@ def init_db():
                 FOREIGN KEY(id_sub) REFERENCES subactividades(id_sub)
             )''')
 
-            # 4. Tabla Seguimiento de Pagos
+            # 4. Tabla Seguimiento de Pagos [cite: 8]
             cursor.execute('''CREATE TABLE IF NOT EXISTS seguimiento_pagos (
                 id_seguimiento SERIAL PRIMARY KEY,
                 id_asig INTEGER,
@@ -80,7 +79,7 @@ def init_db():
                 FOREIGN KEY(id_asig) REFERENCES asignacion_municipios(id_asig)
             )''')
 
-            # 5. Tabla Usuarios
+            # 5. Tabla Usuarios [cite: 12]
             cursor.execute('''CREATE TABLE IF NOT EXISTS usuarios (
                 id_usuario SERIAL PRIMARY KEY,
                 email TEXT UNIQUE,
@@ -93,7 +92,7 @@ def init_db():
                 municipio_asignado TEXT
             )''')
 
-            # --- CREACIÓN DEL USUARIO ADMIN ---
+            # --- CREACIÓN DEL USUARIO ADMIN INICIAL [cite: 15] ---
             cursor.execute("SELECT * FROM usuarios WHERE email='admin@santander.gov.co'")
             if not cursor.fetchone():
                 cursor.execute("""
@@ -101,16 +100,20 @@ def init_db():
                     VALUES ('admin@santander.gov.co', 'admin123', 'Administrador Inicial', 'DEPARTAMENTO_PARAMETRIZADOR', 'N/A')
                 """)
             
-            conn.commit()
-            cursor.close()
-            conn.close()
-            st.success("✅ Base de datos sincronizada correctamente.")
+            conn.commit() [cite: 13]
+            cursor.close() [cite: 13]
+            conn.close() [cite: 13]
+            st.success("✅ Base de datos sincronizada.") [cite: 14]
             
         except Exception as e:
-            st.error(f"❌ Error al crear tablas: {e}")
+            st.error(f"❌ Error al crear tablas: {e}") [cite: 14]
     else:
-        st.sidebar.error("⚠️ Error de conexión: Verifica las credenciales en el código.")
+        st.sidebar.error("⚠️ Sin conexión a la BD. Verifica el Host/Clave.") [cite: 14]
 
+
+
+# --- INICIALIZACIÓN AUTOMÁTICA ---
+init_db()
 # --- INICIALIZACIÓN ---
 init_db()
 
