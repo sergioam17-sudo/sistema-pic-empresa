@@ -11,8 +11,8 @@ def connection():
     USER = "postgres"
     # REEMPLAZA ESTO: Pon tu clave real aquí entre las comillas
     PASS = "ClavePic2026" 
-    HOST = "db.ewsfasbgcewaarmsfqbt.supabase.co"
-    PORT = "6543"
+    HOST = "ewsfasbgcewaarmsfqbt.supabase.co"
+    PORT = "5432"
     DBNAME = "postgres"
     
     # Creamos la cadena de conexión (URI)
