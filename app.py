@@ -16,15 +16,16 @@ def connection():
     conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
     
     try:
-        return psycopg2.connect(conn_str)
-    except Exception as e:
+        # connect_timeout ayuda a que la app no se quede "pegada" si no hay red [cite: 1]
+        return psycopg2.connect(conn_str, connect_timeout=10)
+    except Exception:
         return None
 
 def init_db():
     conn = connection()
     if conn is not None:
         try:
-            cursor = conn.cursor() [cite: 13]
+            cursor = conn.cursor() [cite: 2]
             
             # 1. Tabla Actividades [cite: 3]
             cursor.execute('''CREATE TABLE IF NOT EXISTS actividades_maestro (
@@ -49,7 +50,7 @@ def init_db():
                 FOREIGN KEY(id_actividad) REFERENCES actividades_maestro(id_actividad)
             )''') [cite: 5, 6]
 
-            # 3. Tabla Asignación Municipios [cite: 6, 7]
+            # 3. Tabla Asignación Municipios [cite: 7]
             cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
                 id_asig SERIAL PRIMARY KEY,
                 id_sub INTEGER,
@@ -62,7 +63,7 @@ def init_db():
                 FOREIGN KEY(id_sub) REFERENCES subactividades(id_sub)
             )''') [cite: 7, 8]
 
-            # 4. Tabla Seguimiento de Pagos [cite: 8, 9]
+            # 4. Tabla Seguimiento de Pagos [cite: 9]
             cursor.execute('''CREATE TABLE IF NOT EXISTS seguimiento_pagos (
                 id_seguimiento SERIAL PRIMARY KEY,
                 id_asig INTEGER,
@@ -92,7 +93,7 @@ def init_db():
                 municipio_asignado TEXT
             )''') [cite: 12, 13]
 
-            # --- CREACIÓN DEL USUARIO ADMIN INICIAL [cite: 15] ---
+            # --- CREACIÓN DEL USUARIO ADMIN INICIAL [cite: 14] ---
             cursor.execute("SELECT * FROM usuarios WHERE email='admin@santander.gov.co'")
             if not cursor.fetchone():
                 cursor.execute("""
@@ -100,22 +101,23 @@ def init_db():
                     VALUES ('admin@santander.gov.co', 'admin123', 'Administrador Inicial', 'DEPARTAMENTO_PARAMETRIZADOR', 'N/A')
                 """) [cite: 14]
             
-            conn.commit() [cite: 13]
-            cursor.close() [cite: 13]
+            conn.commit() [cite: 15]
+            cursor.close() [cite: 15]
             conn.close() [cite: 15]
-            st.success("✅ Base de datos sincronizada.") [cite: 15]
+            st.success("✅ Base de datos sincronizada correctamente.") [cite: 15]
             
         except Exception as e:
             st.error(f"❌ Error al crear tablas: {e}") [cite: 15]
     else:
-        # Usamos st.error directamente para evitar problemas de contexto con sidebar
-        st.error("⚠️ Sin conexión a la BD. Verifica el Host/Clave.") [cite: 16]
+        # Mensaje estático para evitar errores de contexto de Streamlit 
+        st.warning("⚠️ Sin conexión a la BD. Verifica el Host/Clave en Supabase.") [cite: 16]
 
 # --- INICIALIZACIÓN AUTOMÁTICA ---
 if __name__ == "__main__":
-    init_db()
+    init_db() [cite: 16]
 
 # --- 2. CONFIGURACIÓN DE LA INTERFAZ ---
+
 
 
 # --- 2. CONFIGURACIÓN DE LA INTERFAZ ---
