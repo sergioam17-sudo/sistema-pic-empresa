@@ -4,7 +4,7 @@ import psycopg2 # Cambiar sqlite3 por psycopg2
 
 # --- 1. CONFIGURACIÓN DE BASE DE DATOS ---
 def connection():
-    # Reemplaza 'TU_CLAVE' por la que acabas de crear
+    # Reemplaza 'ClavePic2026' por la que acabas de crear
     # El :6543 es el puerto del Pooler, que es mucho más estable
     uri = "postgresql://postgres:TU_CLAVE@db.ewsfasbgcewaarmsfqbt.supabase.co:6543/postgres?sslmode=require"
     return psycopg2.connect(uri)
