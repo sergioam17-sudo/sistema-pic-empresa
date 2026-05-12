@@ -7,32 +7,33 @@ import os
 # --- 1. CONFIGURACIÓN DE BASE DE DATOS ---
 
 def connection():
-    # Datos confirmados
-    USER = "postgres"
-    # REEMPLAZA ESTO: Pon tu clave real aquí entre las comillas
-    PASS = "ClavePic2026" 
-    HOST = "ewsfasbgcewaarmsfqbt.supabase.co"
-    PORT = "5432"
-    DBNAME = "postgres"
-    
-    # Creamos la cadena de conexión (URI)
-    conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
-    
+    # DATOS REVISADOS PARA EVITAR EL TIMEOUT
     try:
-        return psycopg2.connect(conn_str)
+        return psycopg2.connect(
+            dbname="postgres",
+            user="postgres",
+            password="TU_CLAVE_SIN_SIMBOLOS", # <--- Asegúrate que sea la nueva
+            host="aws-0-us-west-2.pooler.supabase.com", # Host del Pooler (más estable)
+            port="6543", 
+            sslmode="require",
+            connect_timeout=10
+        )
     except Exception as e:
-        # Esto imprimirá el error real en tu pantalla de Streamlit
         st.error(f"❌ Error de conexión: {e}")
         return None
 
-# Asegúrate de que el resto de tu código llame a connectio
-
-
-
-
 def init_db():
-    conn = connection() # [cite: 250]
-    cursor = conn.cursor() # [cite: 250]
+    conn = connection()
+    if conn is None:
+        st.error("No se pudo establecer la conexión inicial.")
+        return # Evita el error de 'NoneType'
+    
+    cursor = conn.cursor()
+    # ... tu código de tablas aquí ...
+    conn.commit()
+    cursor.close()
+    conn.close()
+
     
     # 1. Tabla Actividades
     cursor.execute('''CREATE TABLE IF NOT EXISTS actividades_maestro (
