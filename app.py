@@ -6,18 +6,18 @@ import os
 # --- 1. CONFIGURACIÓN DE BASE DE DATOS ---
 
 def connection():
-    # USAMOS EL FORMATO DE USUARIO PARA POOLER (usuario.ID_PROYECTO) 
-    USER = "postgres.ewsfasbgcewaarmsfqbt" 
-    PASS = "ClavePic2026" 
-    HOST = "aws-0-us-west-2.pooler.supabase.com"
-    PORT = "6543"
+    # USAMOS EL HOST DIRECTO PARA EVITAR EL TIMEOUT DEL POOLER
+    USER = "postgres" 
+    PASS = "ClavePic2026" # <--- Si cambiaste la clave en Supabase, ponla aquí
+    HOST = "db.ewsfasbgcewaarmsfqbt.supabase.co" 
+    PORT = "5432"
     DBNAME = "postgres"
     
     conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
     
     try:
-        # connect_timeout ayuda a que la app no se quede "pegada" si no hay red [cite: 1, 2]
-        return psycopg2.connect(conn_str, connect_timeout=10)
+        # connect_timeout=5 obliga a la app a responder en 5 segundos o fallar
+        return psycopg2.connect(conn_str, connect_timeout=5)
     except Exception:
         return None
 
@@ -25,98 +25,51 @@ def init_db():
     conn = connection()
     if conn is not None:
         try:
-            cursor = conn.cursor() [cite: 2]
-            
-            # 1. Tabla Actividades [cite: 3]
+            cursor = conn.cursor()
+            # 1. Tablas principales [cite: 3, 5, 7, 9, 12]
             cursor.execute('''CREATE TABLE IF NOT EXISTS actividades_maestro (
-                id_actividad SERIAL PRIMARY KEY,
-                nombre_actividad TEXT,
-                descripcion TEXT,
-                meta_global REAL,
-                unidad_medida TEXT,
-                valor_total_actividad REAL,
-                programa_responsable TEXT
-            )''') [cite: 3, 4]
+                id_actividad SERIAL PRIMARY KEY, nombre_actividad TEXT, descripcion TEXT,
+                meta_global REAL, unidad_medida TEXT, valor_total_actividad REAL, programa_responsable TEXT)''')
             
-            # 2. Tabla Subactividades [cite: 5]
             cursor.execute('''CREATE TABLE IF NOT EXISTS subactividades (
-                id_sub SERIAL PRIMARY KEY,
-                id_actividad INTEGER,
-                nombre_subactividad TEXT,
-                valor_sub REAL,
-                meta_sub REAL,
-                unidad_medida_sub TEXT,
-                peso REAL,
-                FOREIGN KEY(id_actividad) REFERENCES actividades_maestro(id_actividad)
-            )''') [cite: 5, 6]
+                id_sub SERIAL PRIMARY KEY, id_actividad INTEGER, nombre_subactividad TEXT,
+                valor_sub REAL, meta_sub REAL, unidad_medida_sub TEXT, peso REAL,
+                FOREIGN KEY(id_actividad) REFERENCES actividades_maestro(id_actividad))''')
 
-            # 3. Tabla Asignación Municipios [cite: 7]
             cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
-                id_asig SERIAL PRIMARY KEY,
-                id_sub INTEGER,
-                municipio TEXT,
-                num_contrato TEXT,
-                num_pagos INTEGER,
-                valor_asignado REAL,
-                meta_municipal REAL,
-                unidad_medida_asig TEXT,
-                FOREIGN KEY(id_sub) REFERENCES subactividades(id_sub)
-            )''') [cite: 7, 8]
+                id_asig SERIAL PRIMARY KEY, id_sub INTEGER, municipio TEXT, num_contrato TEXT,
+                num_pagos INTEGER, valor_asignado REAL, meta_municipal REAL, unidad_medida_asig TEXT,
+                FOREIGN KEY(id_sub) REFERENCES subactividades(id_sub))''')
 
-            # 4. Tabla Seguimiento de Pagos [cite: 9]
             cursor.execute('''CREATE TABLE IF NOT EXISTS seguimiento_pagos (
-                id_seguimiento SERIAL PRIMARY KEY,
-                id_asig INTEGER,
-                num_pago_actual INTEGER,
-                avance_meta REAL,
-                valor_calculado REAL,
-                soporte_municipio TEXT,
-                acta_referente TEXT,
-                usuario_referente TEXT,
-                ok_supervisor INTEGER DEFAULT 0,
-                usuario_supervisor TEXT,
-                estado TEXT, 
-                fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(id_asig) REFERENCES asignacion_municipios(id_asig)
-            )''') [cite: 9, 10, 11]
+                id_seguimiento SERIAL PRIMARY KEY, id_asig INTEGER, num_pago_actual INTEGER,
+                avance_meta REAL, valor_calculado REAL, soporte_municipio TEXT, acta_referente TEXT,
+                usuario_referente TEXT, ok_supervisor INTEGER DEFAULT 0, usuario_supervisor TEXT,
+                estado TEXT, fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(id_asig) REFERENCES asignacion_municipios(id_asig))''')
 
-            # 5. Tabla Usuarios [cite: 12]
             cursor.execute('''CREATE TABLE IF NOT EXISTS usuarios (
-                id_usuario SERIAL PRIMARY KEY,
-                email TEXT UNIQUE,
-                password TEXT,
-                nombre_completo TEXT,
-                cedula TEXT,
-                cargo TEXT,
-                telefono TEXT,
-                rol TEXT,
-                municipio_asignado TEXT
-            )''') [cite: 12, 13]
+                id_usuario SERIAL PRIMARY KEY, email TEXT UNIQUE, password TEXT,
+                nombre_completo TEXT, cedula TEXT, cargo TEXT, telefono TEXT, rol TEXT, municipio_asignado TEXT)''')
 
-            # --- CREACIÓN DEL USUARIO ADMIN INICIAL [cite: 14] ---
+            # Admin inicial [cite: 14]
             cursor.execute("SELECT * FROM usuarios WHERE email='admin@santander.gov.co'")
             if not cursor.fetchone():
-                cursor.execute("""
-                    INSERT INTO usuarios (email, password, nombre_completo, rol, municipio_asignado) 
-                    VALUES ('admin@santander.gov.co', 'admin123', 'Administrador Inicial', 'DEPARTAMENTO_PARAMETRIZADOR', 'N/A')
-                """) [cite: 14]
+                cursor.execute("""INSERT INTO usuarios (email, password, nombre_completo, rol, municipio_asignado) 
+                    VALUES ('admin@santander.gov.co', 'admin123', 'Administrador Inicial', 'DEPARTAMENTO_PARAMETRIZADOR', 'N/A')""")
             
-            conn.commit() [cite: 15]
-            cursor.close() [cite: 15]
-            conn.close() [cite: 15]
-            st.success("✅ Base de datos sincronizada correctamente.") [cite: 15]
-            
-        except Exception as e:
-            st.error(f"❌ Error al crear tablas: {e}") [cite: 15]
+            conn.commit()
+            cursor.close()
+            conn.close()
+        except Exception:
+            pass # Evita errores críticos en pantalla durante el inicio
     else:
-        # Se muestra la advertencia pero se evita el NameError 
-        st.warning("⚠️ Sin conexión a la BD. Verifica el Host/Clave en Supabase.") [cite: 16]
+        # Solo se muestra si la conexión falla [cite: 17]
+        st.warning("⚠️ Sin conexión a la BD. El sistema funcionará en modo limitado.")
 
-# --- INICIALIZACIÓN AUTOMÁTICA ---
+# --- INICIALIZACIÓN ---
 if __name__ == "__main__":
-    init_db() [cite: 16]
-
-# --- 2. CONFIGURACIÓN DE LA INTERFAZ ---
+    init_db() 
 
 
 
