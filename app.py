@@ -12,7 +12,7 @@ def connection():
         return psycopg2.connect(
             dbname="postgres",
             user="postgres",
-            password="TU_CLAVE_SIN_SIMBOLOS", # <--- Asegúrate que sea la nueva
+            password="ClavePic2026", # <--- Asegúrate que sea la nueva
             host="aws-0-us-west-2.pooler.supabase.com", # Host del Pooler (más estable)
             port="6543", 
             sslmode="require",
