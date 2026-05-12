@@ -6,21 +6,25 @@ import os
 # --- 1. CONFIGURACIÓN DE BASE DE DATOS ---
 
 def connection():
-    # USAMOS EL POOLER PARA COMPATIBILIDAD CON IPV4
-    # El usuario debe llevar el ID del proyecto al final
+    # DATOS PARA EL POOLER DE SUPABASE (Región Oregon)
+    # Importante: El usuario DEBE llevar el ID del proyecto
     USER = "postgres.ewsfasbgcewaarmsfqbt" 
-    PASS = "ClavePic2026" 
-    HOST = "db.ewsfasbgcewaarmsfqbt.supabase.co"
-    PORT = "5432" 
+    PASS = "ClavePic2026" # <--- Asegúrate que sea la que resetearte
+    HOST = "aws-0-us-west-2.pooler.supabase.com" 
+    PORT = "6543" 
     DBNAME = "postgres"
     
-    conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=allow"
+    # Usamos sslmode=require porque Supabase lo exige para conexiones externas
+    conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
     
     try:
-        # Aumentamos el tiempo de espera
-        return psycopg2.connect(conn_str, connect_timeout=15)
-    except Exception:
+        # Timeout de 10 segundos para no bloquear la app
+        return psycopg2.connect(conn_str, connect_timeout=10)
+    except Exception as e:
+        # Esto te ayudará a ver el error real en los logs de Streamlit
+        print(f"Error de conexión detallado: {e}")
         return None
+
 
 
 def init_db():
