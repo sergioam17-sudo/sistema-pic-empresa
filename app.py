@@ -5,8 +5,6 @@ import os
 
 
 # --- 1. CONFIGURACIÓN DE BASE DE DATOS ---
-import st  # Asegúrate de tener importado streamlit como st
-
 
 def connection():
     # Datos confirmados
