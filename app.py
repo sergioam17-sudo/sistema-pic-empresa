@@ -6,20 +6,22 @@ import os
 # --- 1. CONFIGURACIÓN DE BASE DE DATOS ---
 
 def connection():
-    # USAMOS EL HOST DIRECTO PARA EVITAR EL TIMEOUT DEL POOLER
-    USER = "postgres" 
-    PASS = "ClavePic2026" # <--- Si cambiaste la clave en Supabase, ponla aquí
-    HOST = "db.ewsfasbgcewaarmsfqbt.supabase.co" 
-    PORT = "5432"
+    # USAMOS EL POOLER PARA COMPATIBILIDAD CON IPV4
+    # El usuario debe llevar el ID del proyecto al final
+    USER = "postgres.ewsfasbgcewaarmsfqbt" 
+    PASS = "ClavePic2026" 
+    HOST = "aws-0-us-west-2.pooler.supabase.com"
+    PORT = "6543" 
     DBNAME = "postgres"
     
     conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
     
     try:
-        # connect_timeout=5 obliga a la app a responder en 5 segundos o fallar
-        return psycopg2.connect(conn_str, connect_timeout=5)
+        # Aumentamos el tiempo de espera
+        return psycopg2.connect(conn_str, connect_timeout=15)
     except Exception:
         return None
+
 
 def init_db():
     conn = connection()
