@@ -8,7 +8,7 @@ def connection():
         dbname="postgres",
         user="postgres",
         password="AdminPic2026", # Asegúrate de que sea la que restableciste
-        host="db.ewsfasbgcewaarmsfqbt.supabase.co",
+        host="ewsfasbgcewaarmsfqbt.supabase.co",
         port="6543", # Puerto alternativo más estable para la nube
         sslmode="require" # Requisito de seguridad para conexiones remotas
     )
