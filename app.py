@@ -10,8 +10,8 @@ def connection():
     # El usuario debe llevar el ID del proyecto al final
     USER = "postgres.ewsfasbgcewaarmsfqbt" 
     PASS = "ClavePic2026" 
-    HOST = "aws-0-us-west-2.pooler.supabase.com"
-    PORT = "6543" 
+    HOST = "db.ewsfasbgcewaarmsfqbt.supabase.co"
+    PORT = "5432" 
     DBNAME = "postgres"
     
     conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
