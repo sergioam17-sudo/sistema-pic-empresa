@@ -219,30 +219,29 @@ else:
                 st.bar_chart(df_muni_inv.set_index('municipio'))
 
   
-with col_right:
+            with col_right:
                 st.write("#### 🚦 Estado de los Trámites de Pago")
                 df_pagos_est = get_data("seguimiento_pagos")
                 if not df_pagos_est.empty:
-                    # Usamos value_counts de Pandas en lugar de GROUP BY de SQL [cite: 143]
+                    # Usamos value_counts de Pandas para resumir estados
                     df_resumen_est = df_pagos_est['estado'].value_counts().reset_index()
                     df_resumen_est.columns = ['Estado', 'Cantidad']
-                    st.write(df_resumen_est) [cite: 144]
+                    st.write(df_resumen_est)
                 else:
-                    st.info("No hay trámites de pago iniciados.") [cite: 144]
-
+                    st.info("No hay trámites de pago iniciados.")
+            
             st.write("#### ⚠️ Últimos Movimientos del Sistema")
             
-            # Unimos las tablas con Pandas para mostrar los últimos registros [cite: 145]
+            # Unimos las tablas con Pandas para mostrar los últimos registros
             df_p_ult = get_data("seguimiento_pagos")
             df_a_ult = get_data("asignacion_municipios")
             df_s_ult = get_data("subactividades")
 
             if not df_p_ult.empty:
-                # Unión de tablas para obtener nombres de municipio y actividad [cite: 145]
+                # Unión de tablas para obtener nombres de municipio y actividad
                 df_merge_ult = df_p_ult.merge(df_a_ult, on="id_asig").merge(df_s_ult, on="id_sub")
-                df_final_ult = df_merge_ult[['fecha_registro', 'municipio', 'nombre_subactividad', 'estado']].tail(5) [cite: 146]
-                st.table(df_final_ult) [cite: 146]
-            
+                df_final_ult = df_merge_ult[['fecha_registro', 'municipio', 'nombre_subactividad', 'estado']].tail(5)
+                st.table(df_final_ult)            
 
 
 
