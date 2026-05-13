@@ -4,8 +4,8 @@ from streamlit_gsheets import GSheetsConnection
 
 
 
-# URL de tu Excel (asegurate que termina en /edit?usp=sharing o similar)
-URL_DB = "https://docs.google.com/spreadsheets/d/1jRdZX0gNfjWhlb86hHopVkJJrs_9bRIaulZDRzKR0pA/edit?gid=0#gid=0"
+# URL corregida (sin parámetros de pestaña específicos)
+URL_DB = "https://docs.google.com/spreadsheets/d/1jRdZX0gNfjWhlb86hHopVkJJrs_9bRIaulZDRzKR0pA/edit?usp=sharing"
 
 # Crear conexión
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -13,7 +13,6 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 # --- FUNCIÓN PARA INICIALIZAR ENCABEZADOS (AUTOMÁTICO) ---
 
 def init_excel_db():
-    # Diccionario con todas las pestañas y sus columnas exactas
     tablas = {
         "usuarios": ["id_usuario", "nombre_completo", "email", "password", "rol", "municipio_asignado"],
         "actividades_maestro": ["id_actividad", "nombre_actividad", "descripcion", "meta_global", "unidad_medida", "valor_total_actividad", "programa_responsable"],
@@ -24,19 +23,15 @@ def init_excel_db():
     
     for nombre, columnas in tablas.items():
         try:
-            # Intentamos leer la hoja
+            # TTL=0 para forzar lectura fresca y evitar errores de caché
             df = conn.read(spreadsheet=URL_DB, worksheet=nombre, ttl=0)
-            # Si la hoja está vacía o no tiene columnas, la inicializamos
-            if df.empty or len(df.columns) < len(columnas):
+            if df is None or df.empty:
                 df_init = pd.DataFrame(columns=columnas)
                 conn.update(spreadsheet=URL_DB, worksheet=nombre, data=df_init)
-                st.toast(f"✅ Pestaña '{nombre}' inicializada.")
         except Exception:
-            # Si la pestaña no existe físicamente, la crea
+            # Si la hoja no existe, la crea con los encabezados
             df_init = pd.DataFrame(columns=columnas)
             conn.update(spreadsheet=URL_DB, worksheet=nombre, data=df_init)
-
-
 
 
 # --- REEMPLAZO DE 'INSERT INTO' ---
@@ -581,6 +576,8 @@ else:
                 datos = df_mis_asig[df_mis_asig['id_asig'] == sel_asig].iloc[0]
                 
             
+
+
 
                 # Consultar último pago reportado filtrando el DataFrame
                 df_pagos_all = get_data("seguimiento_pagos")
