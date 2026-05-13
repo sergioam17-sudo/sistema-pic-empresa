@@ -1,83 +1,76 @@
 import streamlit as st
 import pandas as pd
-import psycopg2
-import os
+from streamlit_gsheets import GSheetsConnection
 
-# --- 1. CONFIGURACIÓN DE BASE DE DATOS ---
 
-def connection():
-    # DATOS PARA EL POOLER DE SUPABASE (Región Oregon)
-    # Importante: El usuario DEBE llevar el ID del proyecto
-    USER = "postgres.ewsfasbgcewaarmsfqbt" 
-    PASS = "ClavePic2026" # <--- Asegúrate que sea la que resetearte
-    HOST = "aws-0-us-west-2.pooler.supabase.com" 
-    PORT = "6543" 
-    DBNAME = "postgres"
+
+# URL de tu Excel (asegurate que termina en /edit?usp=sharing o similar)
+URL_DB = "https://docs.google.com/spreadsheets/d/TU_ID_AQUÍ/edit?usp=sharing"
+
+# Crear conexión
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+# --- FUNCIÓN PARA INICIALIZAR ENCABEZADOS (AUTOMÁTICO) ---
+def init_excel_db():
+    tablas = {
+        "usuarios": ["id_usuario", "nombre_completo", "email", "password", "rol", "municipio_asignado"],
+        "actividades_maestro": ["id_actividad", "nombre_actividad", "descripcion", "meta_global", "unidad_medida", "valor_total_actividad", "programa_responsable"]
+    }
     
-    # Usamos sslmode=require porque Supabase lo exige para conexiones externas
-    conn_str = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
+    for nombre, columnas in tablas.items():
+        # Intentamos leer la hoja
+        df = conn.read(spreadsheet=URL_DB, worksheet=nombre)
+        if df.empty:
+            # Si está vacía, ponemos los encabezados
+            df_init = pd.DataFrame(columns=columnas)
+            conn.update(spreadsheet=URL_DB, worksheet=nombre, data=df_init)
+
+# --- REEMPLAZO DE 'INSERT INTO' ---
+def guardar_nuevo_usuario(nombre, email, clave, rol, muni):
+    # 1. Leer datos actuales
+    df_actual = conn.read(spreadsheet=URL_DB, worksheet="usuarios")
     
-    try:
-        # Timeout de 10 segundos para no bloquear la app
-        return psycopg2.connect(conn_str, connect_timeout=10)
-    except Exception as e:
-        # Esto te ayudará a ver el error real en los logs de Streamlit
-        print(f"Error de conexión detallado: {e}")
-        return None
+    # 2. Crear nueva fila (Pandas)
+    nuevo_id = 1 if df_actual.empty else df_actual["id_usuario"].max() + 1
+    nueva_fila = pd.DataFrame([[nuevo_id, nombre, email, clave, rol, muni]], 
+                              columns=df_actual.columns)
+    
+    # 3. Unir y Subir
+    df_final = pd.concat([df_actual, nueva_fila], ignore_index=True)
+    conn.update(spreadsheet=URL_DB, worksheet="usuarios", data=df_final)
 
 
 
-def init_db():
-    conn = connection()
-    if conn is not None:
-        try:
-            cursor = conn.cursor()
-            # 1. Tablas principales [cite: 3, 5, 7, 9, 12]
-            cursor.execute('''CREATE TABLE IF NOT EXISTS actividades_maestro (
-                id_actividad SERIAL PRIMARY KEY, nombre_actividad TEXT, descripcion TEXT,
-                meta_global REAL, unidad_medida TEXT, valor_total_actividad REAL, programa_responsable TEXT)''')
-            
-            cursor.execute('''CREATE TABLE IF NOT EXISTS subactividades (
-                id_sub SERIAL PRIMARY KEY, id_actividad INTEGER, nombre_subactividad TEXT,
-                valor_sub REAL, meta_sub REAL, unidad_medida_sub TEXT, peso REAL,
-                FOREIGN KEY(id_actividad) REFERENCES actividades_maestro(id_actividad))''')
-
-            cursor.execute('''CREATE TABLE IF NOT EXISTS asignacion_municipios (
-                id_asig SERIAL PRIMARY KEY, id_sub INTEGER, municipio TEXT, num_contrato TEXT,
-                num_pagos INTEGER, valor_asignado REAL, meta_municipal REAL, unidad_medida_asig TEXT,
-                FOREIGN KEY(id_sub) REFERENCES subactividades(id_sub))''')
-
-            cursor.execute('''CREATE TABLE IF NOT EXISTS seguimiento_pagos (
-                id_seguimiento SERIAL PRIMARY KEY, id_asig INTEGER, num_pago_actual INTEGER,
-                avance_meta REAL, valor_calculado REAL, soporte_municipio TEXT, acta_referente TEXT,
-                usuario_referente TEXT, ok_supervisor INTEGER DEFAULT 0, usuario_supervisor TEXT,
-                estado TEXT, fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(id_asig) REFERENCES asignacion_municipios(id_asig))''')
-
-            cursor.execute('''CREATE TABLE IF NOT EXISTS usuarios (
-                id_usuario SERIAL PRIMARY KEY, email TEXT UNIQUE, password TEXT,
-                nombre_completo TEXT, cedula TEXT, cargo TEXT, telefono TEXT, rol TEXT, municipio_asignado TEXT)''')
-
-            # Admin inicial [cite: 14]
-            cursor.execute("SELECT * FROM usuarios WHERE email='admin@santander.gov.co'")
-            if not cursor.fetchone():
-                cursor.execute("""INSERT INTO usuarios (email, password, nombre_completo, rol, municipio_asignado) 
-                    VALUES ('admin@santander.gov.co', 'admin123', 'Administrador Inicial', 'DEPARTAMENTO_PARAMETRIZADOR', 'N/A')""")
-            
-            conn.commit()
-            cursor.close()
-            conn.close()
-        except Exception:
-            pass # Evita errores críticos en pantalla durante el inicio
-    else:
-        # Solo se muestra si la conexión falla [cite: 17]
-        st.warning("⚠️ Sin conexión a la BD. El sistema funcionará en modo limitado.")
-
-# --- INICIALIZACIÓN ---
-if __name__ == "__main__":
-    init_db() 
 
 
+
+# --- CONFIGURACIÓN DE LECTURA ---
+def get_data(nombre_hoja):
+    """Lee datos de la hoja especificada en Google Sheets"""
+    return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl=0)
+
+# Inicializar encabezados automáticamente si las hojas están vacías
+try:
+    init_excel_db()
+except Exception as e:
+    st.error(f"Error al conectar con la base de datos: {e}")
+
+# --- LISTA DE MUNICIPIOS ---
+
+municipios_santander = [
+                "Aguada", "Albania", "Aratoca", "Barbosa", "Barichara", "Barrancabermeja", "Betulia", "Bolívar", 
+                "Bucaramanga", "Cabrera", "California", "Capitanejo", "Carcasí", "Cepitá", "Cerrito", "Charalá", 
+                "Charta", "Chima", "Chipatá", "Cimitarra", "Concepción", "Confines", "Contratación", "Coromoro", 
+                "Curití", "El Carmen de Chucurí", "El Guacamayo", "El Peñón", "El Playón", "Encino", "Enciso", 
+                "Floridablanca", "Florián", "Galán", "Gambita", "Girón", "Guaca", "Guadalupe", "Guapotá", "Guavatá", 
+                "Güepsa", "Hato", "Jesús María", "Jordán", "La Belleza", "La Paz", "Landázuri", "Lebrija", "Los Santos", 
+                "Macaravita", "Málaga", "Matanza", "Mogotes", "Molagavita", "Ocamonte", "Oiba", "Onzaga", "Palmar", 
+                "Palmas del Socorro", "Páramo", "Piedecuesta", "Pinchote", "Puente Nacional", "Puerto Parra", 
+                "Puerto Wilches", "Rionegro", "Sabana de Torres", "San Andrés", "San Benito", "San Gil", 
+                "San Joaquín", "San José de Miranda", "San Miguel", "San Vicente de Chucurí", "Santa Bárbara", 
+                "Santa Helena del Opón", "Simacota", "Socorro", "Suaita", "Sucre", "Suratá", "Tona", "Valle de San José", 
+                "Vélez", "Vetas", "Villanueva", "Zapatoca"
+            ]
 
 # --- 2. CONFIGURACIÓN DE LA INTERFAZ ---
 st.set_page_config(page_title="Sistema PIC - Unidad de Medida", layout="wide")
@@ -88,38 +81,35 @@ if 'user' not in st.session_state:
     pass_input = st.sidebar.text_input("Contraseña", type="password")
     
     if st.sidebar.button("Ingresar"):
-        conn = connection()
-        if conn is not None:
-            # Consulta segura [cite: 19]
-            query = f"SELECT * FROM usuarios WHERE email='{user_input}' AND password='{pass_input}'"
-            user_data = pd.read_sql(query, conn)
-            conn.close() [cite: 13]
+        try:
+            # 1. Traemos la hoja de usuarios desde Google Sheets
+            df_usuarios = get_data("usuarios")
             
-            if not user_data.empty:
-                st.session_state['user'] = user_data.iloc[0]['email'] [cite: 19]
-                st.session_state['rol'] = user_data.iloc[0]['rol'] [cite: 19]
-                st.session_state['muni_asignado'] = user_data.iloc[0]['municipio_asignado'] [cite: 20]
-                st.rerun()
-            else:
-                st.sidebar.error("Usuario o contraseña incorrectos.")
-        else:
-            st.sidebar.error("❌ No hay conexión disponible con el servidor.")
-
+            # 2. Filtramos el DataFrame buscando coincidencia
+            user_match = df_usuarios[
+                (df_usuarios['email'] == user_input) & 
+                (df_usuarios['password'].astype(str) == str(pass_input))
+            ]
+        
+                if not user_match.empty:
+                    # 3. Guardamos los datos en la sesión si hay coincidencia
+                    st.session_state['user'] = user_match.iloc[0]['email']
+                    st.session_state['rol'] = user_match.iloc[0]['rol']
+                    st.session_state['muni_asignado'] = user_match.iloc[0]['municipio_asignado']
+                    st.success(f"Bienvenido {user_match.iloc[0]['nombre_completo']}")
+                    st.rerun()
+                else:
+                    st.sidebar.error("Usuario o contraseña incorrectos.")
 else:
     rol = st.session_state['rol']
     st.sidebar.info(f"**Usuario:** {st.session_state['user']}\n\n**Rol:** {rol}")
-
-# Ubicación: Líneas 124-131 aprox.
     opciones = ["🏠 Dashboard", "📝 Ejecución"]
     if rol == "DEPARTAMENTO_PARAMETRIZADOR":
-        # Se agrega "📊 Generar Informe" a la lista del administrador [cite: 13]
-        opciones += ["⚙️ Parametrización", "⚖️ Revisión", "👤 Gestión Usuarios", "📊 Generar Informe"]
+        opciones += ["⚙️ Parametrización", "⚖️ Revisión", "👤 Gestión Usuarios"]
     elif rol == "REFERENTE_DEPARTAMENTAL":
-        opciones += ["⚖️ Revisión", "📊 Generar Informe"]
+        opciones += ["⚖️ Revisión"]
     elif rol == "SUPERVISOR":
-        opciones += ["⚖️ Revisión", "📊 Generar Informe"]
-
-
+        opciones += ["⚖️ Revisión"] # O las opciones que definas para el supervisor
 
     menu = st.sidebar.radio("Navegación", opciones)
 
@@ -132,22 +122,27 @@ else:
         st.rerun()
 
 
-    # --- MÓDULO: DASHBOARD DINÁMICO ---
+# --- MÓDULO: DASHBOARD DINÁMICO ---
     if menu == "🏠 Dashboard":
         st.title(f"📊 Panel de Control - {rol.replace('_', ' ')}")
-        conn = connection()
 
         if rol == "MUNICIPIO_EJECUTOR":
             muni_user = st.session_state.get('muni_asignado')
             st.subheader(f"Estado de Ejecución: {muni_user}")
 
-            # Datos del Municipio [cite: 68, 69]
-            df_muni = pd.read_sql(f"""
-                SELECT a.valor_asignado, a.meta_municipal, 
-                       (SELECT SUM(valor_calculado) FROM seguimiento_pagos WHERE id_asig = a.id_asig AND estado != 'PENDIENTE') as ejecutado,
-                       (SELECT SUM(avance_meta) FROM seguimiento_pagos WHERE id_asig = a.id_asig AND estado != 'PENDIENTE') as meta_realizada
-                FROM asignacion_municipios a WHERE a.municipio = '{muni_user}'
-            """, conn)
+            # Datos del Municipio (Carga desde Sheets y filtrado con Pandas)
+            df_asig_all = get_data("asignacion_municipios")
+            df_pagos_all = get_data("seguimiento_pagos")
+            
+            # Filtrar asignaciones del municipio
+            df_muni = df_asig_all[df_asig_all['municipio'] == muni_user]
+            
+            # Calcular ejecutado (esto reemplaza las subconsultas SQL)
+            if not df_pagos_all.empty:
+                pagos_muni = df_pagos_all[(df_pagos_all['estado'] != 'PENDIENTE')]
+                total_ejecutado = pagos_muni['valor_calculado'].sum()
+            else:
+                total_ejecutado = 0
 
             # Métricas Principales [cite: 57, 60]
             total_asig = df_muni['valor_asignado'].sum()
@@ -159,28 +154,54 @@ else:
             m2.metric("Total Ejecutado (Pagos OK)", f"${total_ejec:,.2f}", delta=f"{progreso_financiero:.1%}")
             m3.metric("Pendiente por Cobrar", f"${(total_asig - total_ejec):,.2f}")
 
-            # Gráfico de Avance [cite: 78, 80]
+
+# Gráfico de Avance usando Pandas para unir hojas
             st.write("### Progreso de Metas por Actividad")
-            df_grafico = pd.read_sql(f"""
-                SELECT s.nombre_subactividad as Actividad, a.meta_municipal as Programado,
-                       SUM(p.avance_meta) as Realizado
-                FROM asignacion_municipios a
-                JOIN subactividades s ON a.id_sub = s.id_sub
-                LEFT JOIN seguimiento_pagos p ON a.id_asig = p.id_asig
-                WHERE a.municipio = '{muni_user}'
-                GROUP BY s.nombre_subactividad
-            """, conn)
-            if not df_grafico.empty:
-                st.bar_chart(df_grafico.set_index('Actividad'))
+            df_asig_g = get_data("asignacion_municipios")
+            df_sub_g = get_data("subactividades")
+            df_pagos_g = get_data("seguimiento_pagos")
+
+            if not df_asig_g.empty:
+                # 1. Filtrar asignaciones del municipio logueado
+                muni_asig = df_asig_g[df_asig_g['municipio'] == muni_user]
+                
+                # 2. Unir con subactividades para obtener los nombres [cite: 133]
+                df_merge = muni_asig.merge(df_sub_g, on="id_sub")
+                
+                # 3. Unir con pagos realizados (si existen) [cite: 134]
+                if not df_pagos_g.empty:
+                    df_merge = df_merge.merge(df_pagos_g, on="id_asig", how="left")
+                    # Agrupar por actividad y sumar avances [cite: 135]
+                    df_grafico = df_merge.groupby('nombre_subactividad').agg({
+                        'meta_municipal': 'first',
+                        'avance_meta': 'sum'
+               
+                    }).reset_index()
+                    
+                    df_grafico.columns = ['Actividad', 'Programado', 'Realizado']
+                    
+                    if not df_grafico.empty:
+                        st.bar_chart(df_grafico.set_index('Actividad'))
+                    else:
+                        st.info("No hay datos suficientes para generar el gráfico.")
+                else:
+                    st.info("No hay reportes de avance registrados para graficar.")
+            else:
+                st.info("No hay asignaciones registradas para este municipio.")
 
         else:
             # VISTA DEPARTAMENTAL (Parametrizador, Referente, Supervisor) [cite: 13, 81]
             st.subheader("Análisis Global de Inversión y Cumplimiento")
 
             # Datos Globales [cite: 20, 53, 87]
-            total_pic = pd.read_sql("SELECT SUM(valor_total_actividad) FROM actividades_maestro", conn).iloc[0,0] or 0
-            total_asig = pd.read_sql("SELECT SUM(valor_asignado) FROM asignacion_municipios", conn).iloc[0,0] or 0
-            total_pagos = pd.read_sql("SELECT SUM(valor_calculado) FROM seguimiento_pagos WHERE estado='REVISADO_REFERENTE'", conn).iloc[0,0] or 0
+            # Datos Globales calculados con Pandas
+            df_act_global = get_data("actividades_maestro")
+            df_asig_global = get_data("asignacion_municipios")
+            df_pagos_global = get_data("seguimiento_pagos")
+            
+            total_pic = df_act_global['valor_total_actividad'].sum() if not df_act_global.empty else 0
+            total_asig = df_asig_global['valor_asignado'].sum() if not df_asig_global.empty else 0
+            total_pagos = df_pagos_global[df_pagos_global['estado']=='REVISADO_REFERENTE']['valor_calculado'].sum() if not df_pagos_global.empty else 0
 
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Presupuesto Total PIC", f"${total_pic:,.0f}")
@@ -193,31 +214,40 @@ else:
 
             with col_left:
                 st.write("#### 💰 Inversión por Municipio (Top 10)")
-                df_muni_inv = pd.read_sql("""
-                    SELECT municipio, SUM(valor_asignado) as inversion 
-                    FROM asignacion_municipios GROUP BY municipio ORDER BY inversion DESC LIMIT 10
-                """, conn)
+                df_asig = get_data("asignacion_municipios")
+                df_muni_inv = df_asig.groupby('municipio')['valor_asignado'].sum().reset_index()
                 st.bar_chart(df_muni_inv.set_index('municipio'))
 
-            with col_right:
+  
+with col_right:
                 st.write("#### 🚦 Estado de los Trámites de Pago")
-                df_estados = pd.read_sql("SELECT estado, COUNT(*) as cantidad FROM seguimiento_pagos GROUP BY estado", conn)
-                if not df_estados.empty:
-                    st.write(df_estados) # Tabla resumen de estados [cite: 82]
+                df_pagos_est = get_data("seguimiento_pagos")
+                if not df_pagos_est.empty:
+                    # Usamos value_counts de Pandas en lugar de GROUP BY de SQL [cite: 143]
+                    df_resumen_est = df_pagos_est['estado'].value_counts().reset_index()
+                    df_resumen_est.columns = ['Estado', 'Cantidad']
+                    st.write(df_resumen_est) [cite: 144]
                 else:
-                    st.info("No hay trámites de pago iniciados.")
+                    st.info("No hay trámites de pago iniciados.") [cite: 144]
 
-            # Tabla de Alerta: Municipios con mayor atraso [cite: 65, 87]
             st.write("#### ⚠️ Últimos Movimientos del Sistema")
-            df_ultimos = pd.read_sql("""
-                SELECT p.fecha_registro, a.municipio, s.nombre_subactividad, p.estado 
-                FROM seguimiento_pagos p
-                JOIN asignacion_municipios a ON p.id_asig = a.id_asig
-                JOIN subactividades s ON a.id_sub = s.id_sub
-                ORDER BY p.fecha_registro DESC LIMIT 5
-            """, conn)
-            st.table(df_ultimos)
+            
+            # Unimos las tablas con Pandas para mostrar los últimos registros [cite: 145]
+            df_p_ult = get_data("seguimiento_pagos")
+            df_a_ult = get_data("asignacion_municipios")
+            df_s_ult = get_data("subactividades")
 
+            if not df_p_ult.empty:
+                # Unión de tablas para obtener nombres de municipio y actividad [cite: 145]
+                df_merge_ult = df_p_ult.merge(df_a_ult, on="id_asig").merge(df_s_ult, on="id_sub")
+                df_final_ult = df_merge_ult[['fecha_registro', 'municipio', 'nombre_subactividad', 'estado']].tail(5) [cite: 146]
+                st.table(df_final_ult) [cite: 146]
+            else:
+                st.info("Sin movimientos recientes en el sistema.")
+
+
+            else:
+                st.info("Sin movimientos recientes en el sistema.")
 
 
 
@@ -245,12 +275,20 @@ else:
                 desc_a = st.text_area("Descripción de la Actividad")
                 
                 if st.form_submit_button("💾 Guardar Actividad"):
-                    conn = connection()
-                    conn.execute("""INSERT INTO actividades_maestro 
-                        (nombre_actividad, descripcion, meta_global, unidad_medida, valor_total_actividad, programa_responsable) 
-                        VALUES (%s, %s, %s, %s, %s, %s)""", (nombre_a, desc_a, meta_a, unidad_a, val_total, prog))
-                    conn.commit()
-                    st.success("✅ Actividad guardada.")
+                    df_act = get_data("actividades_maestro")
+                    nuevo_id = 1 if df_act.empty else df_act['id_actividad'].max() + 1
+                    
+                    nueva_fila = pd.DataFrame([{
+                        "id_actividad": nuevo_id,
+                        "nombre_actividad": nombre_a, "descripcion": desc_a,
+                        "meta_global": meta_a, "unidad_medida": unidad_a,
+                        "valor_total_actividad": val_total, "programa_responsable": prog
+                    }])
+                    
+                    df_final = pd.concat([df_act, nueva_fila], ignore_index=True)
+                    conn.update(spreadsheet=URL_DB, worksheet="actividades_maestro", data=df_final)
+                    st.success("✅ Actividad guardada en Sheets.")
+                    st.rerun()
 
 
 
@@ -258,8 +296,7 @@ else:
             st.write("---")
             st.subheader("📋 Actividades Generales Registradas")
             
-            conn = connection()
-            df_maestro = pd.read_sql("SELECT * FROM actividades_maestro", conn)
+            df_maestro = get_data("actividades_maestro")
             
             if not df_maestro.empty:
                 # Mostramos la tabla profesional
@@ -269,15 +306,19 @@ else:
                 with st.expander("🗑️ Zona de eliminación (Usar con precaución)"):
                     id_a_borrar = st.number_input("Ingrese el ID de la actividad a eliminar:", min_value=1, step=1)
                     if st.button("Eliminar Actividad Permanentemente"):
-                        # Validamos que no tenga subactividades antes de borrar
-                        check_sub = pd.read_sql(f"SELECT * FROM subactividades WHERE id_actividad = {id_a_borrar}", conn)
+                        # Validamos en el DataFrame de subactividades
+                        df_sub_check = get_data("subactividades")
+                        check_sub = df_sub_check[df_sub_check['id_actividad'] == id_a_borrar]
+                        
                         if not check_sub.empty:
-                            st.error("No se puede eliminar: Esta actividad ya tiene subactividades vinculadas. Borre primero las subactividades.")
+                            st.error("⚠️ No se puede eliminar: Esta actividad tiene subactividades vinculadas.")
                         else:
-                            conn.execute(f"DELETE FROM actividades_maestro WHERE id_actividad = {id_a_borrar}")
-                            conn.commit()
-                            st.warning(f"Actividad {id_a_borrar} eliminada.")
+                            df_maestro_del = get_data("actividades_maestro")
+                            df_maestro_del = df_maestro_del[df_maestro_del['id_actividad'] != id_a_borrar]
+                            conn.update(spreadsheet=URL_DB, worksheet="actividades_maestro", data=df_maestro_del)
+                            st.warning(f"Actividad {id_a_borrar} eliminada del Excel.")
                             st.rerun()
+	
             else:
                 st.info("No hay actividades registradas todavía.")
 
@@ -287,7 +328,7 @@ else:
         # TAB 2: SUBACTIVIDADES
         with tab2:
             st.subheader("Desglose de Subactividades")
-            df_act = pd.read_sql("SELECT * FROM actividades_maestro", connection())
+            df_act = get_data("actividades_maestro")
 
             if not df_act.empty:
                 nombres_act = {row['id_actividad']: row['nombre_actividad'] for _, row in df_act.iterrows()}
@@ -295,9 +336,11 @@ else:
                 
                 padre = df_act[df_act['id_actividad'] == act_id].iloc[0]
                 
-                # Resumen de pesos
-                df_sub_existentes = pd.read_sql(f"SELECT * FROM subactividades WHERE id_actividad = {act_id}", connection())
+                # Resumen de pesos usando Pandas
+                df_all_subs = get_data("subactividades")
+                df_sub_existentes = df_all_subs[df_all_subs['id_actividad'] == act_id]
                 peso_usado = df_sub_existentes['peso'].sum()
+
 
                 # --- NUEVO BLOQUE DE CONTROL ---
                 valor_usado = df_sub_existentes['valor_sub'].sum()
@@ -333,12 +376,19 @@ else:
                             st.error("Error: Peso excedido.")
                         else:
                             sub_valor = padre['valor_total_actividad'] * sub_peso
-                            conn = connection()
-                            conn.execute("""INSERT INTO subactividades 
-                                (id_actividad, nombre_subactividad, valor_sub, meta_sub, unidad_medida_sub, peso) 
-                                VALUES (%s, %s, %s, %s, %s, %s)""", (act_id, sub_nombre, sub_valor, sub_meta, sub_unidad, sub_peso))
-                            conn.commit()
-                            st.success("✅ Subactividad agregada.")
+                            df_sub = get_data("subactividades")
+                            nueva_sub = pd.DataFrame([{
+                                "id_sub": len(df_sub) + 1,
+                                "id_actividad": act_id,
+                                "nombre_subactividad": sub_nombre,
+                                "valor_sub": sub_valor,
+                                "meta_sub": sub_meta,
+                                "unidad_medida_sub": sub_unidad,
+                                "peso": sub_peso
+                            }])
+                            df_final = pd.concat([df_sub, nueva_sub], ignore_index=True)
+                            conn.update(spreadsheet=URL_DB, worksheet="subactividades", data=df_final)
+                            st.success("✅ Subactividad agregada al Excel.")
                             st.rerun()
 
                 if not df_sub_existentes.empty:
@@ -375,12 +425,10 @@ else:
                                     if (peso_otros + new_peso) > 1.0001:
                                         st.error("Error: El nuevo peso hace que la suma total supere 1.0")
                                     else:
-                                        conn = connection()
-                                        conn.execute("""UPDATE subactividades SET 
-                                            nombre_subactividad=%s, meta_sub=%s, peso=%s, valor_sub=%s 
-                                            WHERE id_sub=%s""", (new_nom, new_meta, new_peso, new_val, id_edit))
-                                        conn.commit()
-                                        st.success("Subactividad actualizada")
+                                        df_sub_upd = get_data("subactividades")
+                                        df_sub_upd.loc[df_sub_upd['id_sub'] == id_edit, ['nombre_subactividad', 'meta_sub', 'peso', 'valor_sub']] = [new_nom, new_meta, new_peso, new_val]
+                                        conn.update(spreadsheet=URL_DB, worksheet="subactividades", data=df_sub_upd)
+                                        st.success("✅ Subactividad actualizada en Excel")
                                         st.rerun()
                         else:
                             st.info("Ingrese un ID válido de la tabla de arriba")
@@ -389,10 +437,11 @@ else:
                     with col_del.expander("🗑️ Eliminar Subactividad"):
                         id_del = st.number_input("ID de la subactividad a eliminar:", min_value=1, step=1, key="del_sub_id")
                         if st.button("Confirmar Eliminación", type="primary"):
-                            conn = connection()
-                            conn.execute(f"DELETE FROM subactividades WHERE id_sub = {id_del}")
-                            conn.commit()
-                            st.warning(f"Subactividad {id_del} eliminada")
+                            df_sub_del = get_data("subactividades")
+                            # Filtramos para mantener todo menos el ID a borrar
+                            df_sub_del = df_sub_del[df_sub_del['id_sub'] != id_del]
+                            conn.update(spreadsheet=URL_DB, worksheet="subactividades", data=df_sub_del)
+                            st.warning(f"⚠️ Subactividad {id_del} eliminada del Excel")
                             st.rerun()
                 else:
                     st.info("No hay subactividades vinculadas a esta actividad padre.")
@@ -403,12 +452,15 @@ else:
             
             st.subheader("📍 Asignación de Presupuesto por Municipio")
             
-            # Consultar todas las subactividades disponibles con el nombre de su actividad padre
-            df_sub_todas = pd.read_sql("""
-                SELECT s.id_sub, s.nombre_subactividad, s.valor_sub, a.nombre_actividad 
-                FROM subactividades s 
-                JOIN actividades_maestro a ON s.id_actividad = a.id_actividad
-            """, connection())
+            # Consultar subactividades uniendo DataFrames de Pandas
+            df_s_raw = get_data("subactividades")
+            df_a_raw = get_data("actividades_maestro")
+            
+            if not df_s_raw.empty and not df_a_raw.empty:
+                df_sub_todas = df_s_raw.merge(df_a_raw[['id_actividad', 'nombre_actividad']], on="id_actividad")
+            else:
+                df_sub_todas = pd.DataFrame()
+
 
             if df_sub_todas.empty:
                 st.warning("Debe configurar subactividades en la pestaña 2 antes de asignar municipios.")
@@ -421,10 +473,13 @@ else:
                 
                 datos_sub = df_sub_todas[df_sub_todas['id_sub'] == sub_sel_id].iloc[0]
                 
-                # Cálculos de presupuesto municipal
-                df_asig_actual = pd.read_sql(f"SELECT * FROM asignacion_municipios WHERE id_sub = {sub_sel_id}", connection())
-                valor_gastado_muni = df_asig_actual['valor_asignado'].sum()
-                saldo_muni = datos_sub['valor_sub'] - valor_gastado_muni
+            # Cálculos usando el DataFrame ya cargado (df_s_raw)
+            df_asig_all = get_data("asignacion_municipios")
+            df_asig_actual = df_asig_all[df_asig_all['id_sub'] == sub_sel_id]
+
+            valor_gastado_muni = df_asig_actual['valor_asignado'].sum() if not df_asig_actual.empty else 0
+            saldo_muni = datos_sub['valor_sub'] - valor_gastado_muni
+
 
                 # Cuadros de Control
                 col_m1, col_m2 = st.columns(2)
@@ -440,44 +495,46 @@ else:
                     
                     muni_valor = m2.number_input("Valor a asignar ($)", min_value=0.0, max_value=float(datos_sub['valor_sub']), step=1000.0)
                     muni_meta = m2.number_input("Meta Municipal", min_value=0.0)
-                    # Nueva variable Unidad después de Meta
-                    muni_unidad = m2.text_input("Unidad de Medida (ej: Personas, Talleres)")
-
-
-
-
                     
                     if st.form_submit_button("📍 Confirmar Asignación Municipal"):
                         if muni_valor > (saldo_muni + 0.01):
                             st.error(f"Error: El valor supera el saldo disponible (${saldo_muni:,.2f})")
                         else:
-                            conn = connection()
-                            conn.execute("""INSERT INTO asignacion_municipios 
-                                (id_sub, municipio, num_contrato, num_pagos, valor_asignado, meta_municipal, unidad_medida_asig) 
-                                VALUES (%s, %s, %s, %s, %s, %s, %s)""", 
-                                (sub_sel_id, muni_nombre, n_contrato, n_pagos, muni_valor, muni_meta, muni_unidad))
-                            conn.commit()
-                            st.success(f"Asignación exitosa para {muni_nombre}")
+                            df_asig_muni = get_data("asignacion_municipios")
+                            # Generamos nuevo ID y nueva fila
+                            nuevo_id_asig = 1 if df_asig_muni.empty else df_asig_muni['id_asig'].max() + 1
+                            nueva_asig = pd.DataFrame([{
+                                "id_asig": nuevo_id_asig,
+                                "id_sub": sub_sel_id, 
+                                "municipio": muni_nombre, 
+                                "num_contrato": n_contrato, 
+                                "num_pagos": n_pagos, 
+                                "valor_asignado": muni_valor, 
+                                "meta_municipal": muni_meta
+                            }])
+                            df_final_asig = pd.concat([df_asig_muni, nueva_asig], ignore_index=True)
+                            conn.update(spreadsheet=URL_DB, worksheet="asignacion_municipios", data=df_final_asig)
+                            st.success(f"✅ Asignación exitosa para {muni_nombre} en Excel")
                             st.rerun()
 
                 # Tabla de Visualización Actualizada
                 if not df_asig_actual.empty:
                     st.write("---")
                     st.write("**Asignaciones actuales por Municipio:**")
-                    # Agregar 'unidad_medida_asig' al dataframe para que se vea
-                    st.dataframe(df_asig_actual[['id_asig', 'municipio', 'num_contrato', 'num_pagos', 'valor_asignado', 'meta_municipal', 'unidad_medida_asig']], use_container_width=True)
+                    st.dataframe(df_asig_actual[['id_asig', 'municipio', 'num_contrato', 'num_pagos', 'valor_asignado', 'meta_municipal']], use_container_width=True)
 
                     # Opción para Eliminar
                     with st.expander("🗑️ Eliminar Asignación Municipal"):
                         id_asig_del = st.number_input("ID de asignación a eliminar:", min_value=1, step=1, key="del_asig_id")
                         if st.button("Confirmar Borrado Municipal", type="primary"):
-                            conn = connection()
-                            conn.execute(f"DELETE FROM asignacion_municipios WHERE id_asig = {id_asig_del}")
-                            conn.commit()
+                            df_asig_del = get_data("asignacion_municipios")
+                            df_asig_del = df_asig_del[df_asig_del['id_asig'] != id_asig_del]
+                            conn.update(spreadsheet=URL_DB, worksheet="asignacion_municipios", data=df_asig_del)
+                            st.warning("⚠️ Asignación eliminada del Excel")
                             st.rerun()
 
 
-    # --- MÓDULO: EJECUCIÓN (MUNICIPIO) ---
+# --- MÓDULO: EJECUCIÓN (MUNICIPIO) ---
     elif menu == "📝 Ejecución":
         if rol != "MUNICIPIO_EJECUTOR":
             st.warning("Este módulo es exclusivo para el perfil MUNICIPIO_EJECUTOR.")
@@ -485,13 +542,21 @@ else:
             st.title("📝 Reporte de Avance Municipal")
             muni_user = st.session_state.get('muni_asignado', 'N/A') 
             
-            df_mis_asig = pd.read_sql(f"""
-                SELECT a.id_asig, m.nombre_actividad, s.nombre_subactividad, a.num_contrato, a.num_pagos, a.valor_asignado, a.meta_municipal
-                FROM asignacion_municipios a
-                JOIN subactividades s ON a.id_sub = s.id_sub
-                JOIN actividades_maestro m ON s.id_actividad = m.id_actividad
-                WHERE a.municipio = '{muni_user}'
-            """, connection())
+
+            # Carga de datos uniendo hojas de Excel con Pandas [cite: 206]
+            df_a_exec = get_data("asignacion_municipios")
+            df_s_exec = get_data("subactividades")
+            df_m_exec = get_data("actividades_maestro")
+
+            if not df_a_exec.empty:
+                # Reemplazo del JOIN SQL por MERGE de Pandas [cite: 206]
+                df_merge_exec = df_a_exec.merge(df_s_exec, on="id_sub").merge(df_m_exec, on="id_actividad")
+                # Filtrar por el municipio asignado al usuario [cite: 207]
+                df_mis_asig = df_merge_exec[df_merge_exec['municipio'] == muni_user]
+            else:
+                df_mis_asig = pd.DataFrame()
+
+
 
             if df_mis_asig.empty:
                 st.info(f"No hay asignaciones pendientes para {muni_user}.")
@@ -501,10 +566,15 @@ else:
                 
                 datos = df_mis_asig[df_mis_asig['id_asig'] == sel_asig].iloc[0]
                 
-                # Consultar último pago reportado
-                df_pagos_hechos = pd.read_sql(f"SELECT MAX(num_pago_actual) as ultimo FROM seguimiento_pagos WHERE id_asig = {sel_asig}", connection())
-                ultimo_pago = df_pagos_hechos['ultimo'].iloc[0] if df_pagos_hechos['ultimo'].iloc[0] is not None else 0
-                siguiente_pago = ultimo_pago + 1
+            # Consultar último pago reportado filtrando el DataFrame
+            df_pagos_all = get_data("seguimiento_pagos")
+            if not df_pagos_all.empty:
+                pagos_asig = df_pagos_all[df_pagos_all['id_asig'] == sel_asig]
+                ultimo_pago = pagos_asig['num_pago_actual'].max() if not pagos_asig.empty else 0
+            else:
+                ultimo_pago = 0
+
+            siguiente_pago = ultimo_pago + 1
                 
                 if siguiente_pago > datos['num_pagos']:
                     st.success("✅ Todas las cuotas de pago de esta actividad han sido reportadas.")
@@ -518,12 +588,21 @@ else:
                         soporte = st.text_input("Link a carpeta de soportes (Evidencias)")
                         
                         if st.form_submit_button("Enviar a Revisión del Referente"):
-                            conn = connection()
-                            conn.execute("""INSERT INTO seguimiento_pagos 
-                                (id_asig, num_pago_actual, avance_meta, valor_calculado, soporte_municipio, estado) 
-                                VALUES (%s, %s, %s, %s, %s, %s)""", (sel_asig, siguiente_pago, meta_avanc, valor_pago, soporte, 'PENDIENTE'))
-                            conn.commit()
-                            st.success("Reporte enviado exitosamente.")
+                            df_pagos = get_data("seguimiento_pagos")
+                            nuevo_id_seg = 1 if df_pagos.empty else df_pagos['id_seguimiento'].max() + 1
+                            nueva_fila_pago = pd.DataFrame([{
+                                "id_seguimiento": nuevo_id_seg,
+                                "id_asig": sel_asig, 
+                                "num_pago_actual": siguiente_pago, 
+                                "avance_meta": meta_avanc, 
+                                "valor_calculado": valor_pago, 
+                                "soporte_municipio": soporte, 
+                                "estado": 'PENDIENTE'
+                            }])
+                            df_final_pagos = pd.concat([df_pagos, nueva_fila_pago], ignore_index=True)
+                            conn.update(spreadsheet=URL_DB, worksheet="seguimiento_pagos", data=df_final_pagos)
+                            st.success("✅ Reporte enviado exitosamente al Excel.")
+
                             st.rerun()
 
 
@@ -534,15 +613,19 @@ else:
         muni_actual = st.session_state.get('muni_asignado')
         # Consulta para ver el estado de los pagos del municipio logueado
        
-        df_seguimiento_muni = pd.read_sql(f"""
-            SELECT p.id_seguimiento, s.nombre_subactividad, p.num_pago_actual, 
-                   p.valor_calculado, p.avance_meta, p.estado, p.acta_referente
-            FROM seguimiento_pagos p
-            JOIN asignacion_municipios a ON p.id_asig = a.id_asig
-            JOIN subactividades s ON a.id_sub = s.id_sub
-            WHERE a.municipio = '{muni_actual}'
-            ORDER BY p.id_seguimiento DESC
-        """, connection())
+        # Obtener historial filtrando con Pandas
+        df_p_muni = get_data("seguimiento_pagos")
+        df_a_muni = get_data("asignacion_municipios")
+        df_s_muni = get_data("subactividades")
+        
+        if not df_p_muni.empty:
+            df_merge_muni = df_p_muni.merge(df_a_muni, on="id_asig").merge(df_s_muni, on="id_sub")
+            df_seguimiento_muni = df_merge_muni[df_merge_muni['municipio'] == muni_actual]
+            df_seguimiento_muni = df_seguimiento_muni[['id_seguimiento', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'avance_meta', 'estado', 'acta_referente']]
+        else:
+            df_seguimiento_muni = pd.DataFrame()
+
+
 
         if not df_seguimiento_muni.empty:
             st.dataframe(df_seguimiento_muni, use_container_width=True)
@@ -553,92 +636,56 @@ else:
 
 
     # --- MÓDULO: REVISIÓN (REFERENTE) ---
-
-# --- BUSCA LA LÍNEA 575 Y REEMPLAZA DESDE AHÍ HASTA EL SIGUIENTE ELIF ---
     elif menu == "⚖️ Revisión":
-        if rol not in ["REFERENTE_DEPARTAMENTAL", "SUPERVISOR", "DEPARTAMENTO_PARAMETRIZADOR"]:
-            st.warning("Acceso restringido a perfiles de Revisión.")
+        if rol != "REFERENTE_DEPARTAMENTAL":
+            st.warning("Acceso exclusivo para REFERENTE_DEPARTAMENTAL.")
         else:
-            st.title("⚖️ Validación y Gestión de Pagos")
-            
-            # --- SECCIÓN PARA REFERENTE ---
-            st.subheader("1. OK Técnico (Referente)")
-            df_pendientes = pd.read_sql("""
-                SELECT p.id_seguimiento, a.municipio, s.nombre_subactividad, p.num_pago_actual, p.valor_calculado, p.soporte_municipio 
-                FROM seguimiento_pagos p 
-                JOIN asignacion_municipios a ON p.id_asig = a.id_asig 
-                JOIN subactividades s ON a.id_sub = s.id_sub 
-                WHERE p.estado = 'PENDIENTE'
-            """, connection())
+            st.title("⚖️ Validación y Carga de Actas")
+            # Cargamos las tablas necesarias
+            df_p = get_data("seguimiento_pagos")
+            df_a = get_data("asignacion_municipios")
+            df_s = get_data("subactividades")
+
+            if not df_p.empty:
+                # Realizamos los "JOIN" usando Pandas
+                df_merge = df_p.merge(df_a, on="id_asig").merge(df_s, on="id_sub")
+                df_pendientes = df_merge[df_merge['estado'] == 'PENDIENTE']
+                # Seleccionamos solo las columnas necesarias para mostrar
+                df_pendientes = df_pendientes[['id_seguimiento', 'municipio', 'num_contrato', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'soporte_municipio']]
+            else:
+                df_pendientes = pd.DataFrame()
             
             if df_pendientes.empty:
-                st.info("No hay reportes pendientes de OK Técnico.")
+                st.write("No hay reportes municipales pendientes de revisión.")
             else:
-                st.dataframe(df_pendientes)
-                with st.form("form_ok_referente"):
-                    id_rev = st.number_input("ID Seguimiento para OK Técnico:", min_value=1, step=1)
-                    acta_link = st.text_input("Enlace Acta de Conformidad (URL)")
-                    if st.form_submit_button("Dar OK Técnico"):
-                        conn = connection()
-                        # Registra el usuario que da el OK en 'usuario_referente'
-                        conn.execute("UPDATE seguimiento_pagos SET estado='REVISADO_REFERENTE', acta_referente=%s, usuario_referente=%s WHERE id_seguimiento=%s", 
-                                     (acta_link, st.session_state['user'], id_rev))
-                        conn.commit()
-                        st.success("OK Técnico registrado. Enviado a Supervisor.")
+                st.dataframe(df_pendientes, use_container_width=True)
+                with st.form("form_revision_referente"):
+                    id_rev = st.number_input("ID de Seguimiento a dar OK:", min_value=1, step=1)
+                    acta_link = st.text_input("Enlace al Acta de Conformidad (PDF)")
+                    if st.form_submit_button("Dar OK y enviar a Supervisor"):
+                        df_rev = get_data("seguimiento_pagos")
+                        # Actualizamos estado y link del acta
+                        df_rev.loc[df_rev['id_seguimiento'] == id_rev, ['estado', 'acta_referente']] = ['REVISADO_REFERENTE', acta_link]
+                        conn.update(spreadsheet=URL_DB, worksheet="seguimiento_pagos", data=df_rev)
+                        st.success("✅ Validación registrada en Excel.")
                         st.rerun()
-
-            # --- SECCIÓN PARA SUPERVISOR ---
-            st.markdown("---")
-            st.subheader("2. Aval de Pago (Supervisor)")
-            if rol in ["SUPERVISOR", "DEPARTAMENTO_PARAMETRIZADOR"]:
-                df_supervisor = pd.read_sql("""
-                    SELECT p.id_seguimiento, a.municipio, p.valor_calculado, p.acta_referente, p.usuario_referente 
-                    FROM seguimiento_pagos p 
-                    JOIN asignacion_municipios a ON p.id_asig = a.id_asig 
-                    WHERE p.estado = 'REVISADO_REFERENTE' AND p.ok_supervisor = 0
-                """, connection())
-                
-                if df_supervisor.empty:
-                    st.write("No hay pagos pendientes de aval por el Supervisor.")
-                else:
-                    st.dataframe(df_supervisor)
-                    with st.form("form_ok_supervisor"):
-                        id_sup = st.number_input("ID Seguimiento para Aval Final:", min_value=1, step=1)
-                        if st.form_submit_button("Dar OK Supervisor (Verificación de Pago)"):
-                            conn = connection()
-                            # Registra el aval y el usuario supervisor
-                            conn.execute("UPDATE seguimiento_pagos SET ok_supervisor=1, usuario_supervisor=%s, estado='APROBADO_PARA_PAGO' WHERE id_seguimiento=%s", 
-                                         (st.session_state['user'], id_sup))
-                            conn.commit()
-                            st.success("Aval de supervisor registrado correctamente.")
-                            st.rerun()
-            else:
-                st.info("Solo el perfil SUPERVISOR puede dar el aval final de pago.")
-
-
-
-
-
-
-
-
-
 
 
 # --- CONSOLIDADO GLOBAL DE PAGOS (VISTA DEPARTAMENTO) ---
         st.write("---")
         st.subheader("📑 Trazabilidad General de Pagos")
         
-        df_global = pd.read_sql("""
-            SELECT p.id_seguimiento, a.municipio, s.nombre_subactividad, 
-                   p.num_pago_actual, p.valor_calculado, p.estado,
-                   p.soporte_municipio as Link_Evidencia,
-                   p.acta_referente as Link_Acta
-            FROM seguimiento_pagos p
-            JOIN asignacion_municipios a ON p.id_asig = a.id_asig
-            JOIN subactividades s ON a.id_sub = s.id_sub
-            ORDER BY p.id_seguimiento DESC
-        """, connection())
+        # Consolidado global uniendo hojas de Excel
+        df_p_glob = get_data("seguimiento_pagos")
+        df_a_glob = get_data("asignacion_municipios")
+        df_s_glob = get_data("subactividades")
+        
+        if not df_p_glob.empty:
+            df_global = df_p_glob.merge(df_a_glob, on="id_asig").merge(df_s_glob, on="id_sub")
+            df_global = df_global[['id_seguimiento', 'municipio', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'estado', 'soporte_municipio', 'acta_referente']]
+            df_global.columns = ['ID', 'Municipio', 'Actividad', 'Pago N°', 'Valor', 'Estado', 'Link Evidencia', 'Link Acta']
+        else:
+            df_global = pd.DataFrame()
 
         if not df_global.empty:
             st.dataframe(df_global, use_container_width=True)
@@ -662,21 +709,27 @@ else:
                 u_muni = st.selectbox("Municipio Asignado", ["N/A"] + municipios_santander)
 
                 if st.form_submit_button("Registrar Usuario"):
-                    conn = connection()
-                    try:
-                        conn.execute("""INSERT INTO usuarios (email, password, nombre_completo, cedula, cargo, telefono, rol, municipio_asignado) 
-                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""", (u_email, u_pass, u_nombre, u_cedula, u_cargo, u_tel, u_rol, u_muni))
-                        conn.commit()
-                        st.success(f"Usuario {u_email} creado exitosamente.")
-                    except:
-                        st.error("Error: El correo ya existe o faltan datos.")
+                    df_users = get_data("usuarios")
+                    if u_email in df_users['email'].values:
+                        st.error("Error: El correo ya existe.")
+                    else:
+                        nueva_fila = pd.DataFrame([{
+                            "id_usuario": len(df_users) + 1,
+                            "email": u_email, "password": u_pass, "nombre_completo": u_nombre,
+                            "cedula": u_cedula, "cargo": u_cargo, "telefono": u_tel,
+                            "rol": u_rol, "municipio_asignado": u_muni
+                        }])
+                        df_final = pd.concat([df_users, nueva_fila], ignore_index=True)
+                        conn.update(spreadsheet=URL_DB, worksheet="usuarios", data=df_final)
+                        st.success(f"Usuario {u_email} registrado correctamente.")
+                        st.rerun()
 
 # --- VISUALIZACIÓN Y GESTIÓN DE USUARIOS EXISTENTES ---
             st.write("---")
             st.subheader("👥 Usuarios Registrados")
             
-            conn = connection()
-            df_usuarios = pd.read_sql("SELECT id_usuario, nombre_completo, email, rol, municipio_asignado, cargo FROM usuarios", conn)
+            
+            df_usuarios = get_data("usuarios")
             
             if not df_usuarios.empty:
                 st.dataframe(df_usuarios, use_container_width=True)
@@ -694,9 +747,10 @@ else:
                                              index=["DEPARTAMENTO_PARAMETRIZADOR", "MUNICIPIO_EJECUTOR", "REFERENTE_DEPARTAMENTAL", "SUPERVISOR"].index(user_to_edit.iloc[0]['rol']))
                         
                         if st.button("Guardar Cambios"):
-                            conn.execute("UPDATE usuarios SET nombre_completo=%s, rol=%s WHERE id_usuario=%s", (new_nombre, new_rol, id_update))
-                            conn.commit()
-                            st.success("Usuario actualizado correctamente")
+                            df_u = get_data("usuarios")
+                            df_u.loc[df_u['id_usuario'] == id_update, ['nombre_completo', 'rol']] = [new_nombre, new_rol]
+                            conn.update(spreadsheet=URL_DB, worksheet="usuarios", data=df_u)
+                            st.success("✅ Usuario actualizado en Excel.")
                             st.rerun()
 
                 # --- OPCIÓN: ELIMINAR ---
@@ -706,67 +760,10 @@ else:
                         if id_delete == 1: # Protección para no borrar al admin principal
                             st.error("No se puede eliminar el usuario administrador maestro.")
                         else:
-                            conn.execute(f"DELETE FROM usuarios WHERE id_usuario = {id_delete}")
-                            conn.commit()
-                            st.warning(f"Usuario {id_delete} eliminado")
+                            df_u_del = get_data("usuarios")
+                            df_u_del = df_u_del[df_u_del['id_usuario'] != id_delete]
+                            conn.update(spreadsheet=URL_DB, worksheet="usuarios", data=df_u_del)
+                            st.warning(f"⚠️ Usuario {id_delete} eliminado del Excel")
                             st.rerun()
             else:
                 st.info("No hay usuarios registrados además del administrador.")
-
-# --- NUEVO MÓDULO: GENERADOR DE INFORMES ---
-    # Este 'elif' debe estar alineado verticalmente con 'elif menu == "👤 Gestión Usuarios":'
-    elif menu == "📊 Generar Informe":
-        st.title("📄 Generador de Informes de Seguimiento PIC")
-        st.info("Filtre la información para generar el análisis operativo y financiero automático.")
-        
-        c1, c2 = st.columns(2)
-        # Asegúrate de que municipios_santander esté definido previamente en el código [cite: 123]
-        m_sel = c1.selectbox("Seleccione Municipio", municipios_santander)
-        p_sel = c2.selectbox("Seleccione Número de Pago/Periodo", [1, 2, 3, 4, 5, 6])
-        
-        if st.button("🔍 Generar Análisis y Documento Word"):
-            conn = connection() # [cite: 116]
-            
-            df_rep = pd.read_sql(f"""
-                SELECT s.nombre_subactividad, p.avance_meta, p.valor_calculado, p.estado, p.num_pago_actual, a.meta_municipal
-                FROM seguimiento_pagos p
-                JOIN asignacion_municipios a ON p.id_asig = a.id_asig
-                JOIN subactividades s ON a.id_sub = s.id_sub
-                WHERE a.municipio = '{m_sel}' AND p.num_pago_actual = {p_sel}
-            """, conn)
-            
-            if df_rep.empty:
-                st.error("No se encontraron registros para este municipio y periodo.")
-            else:
-                from docx import Document 
-                doc = Document()
-                doc.add_heading(f'Informe de Seguimiento PIC - {m_sel}', 0)
-                
-                # Análisis Automático Operativo y Financiero
-                val_ejec = df_rep['valor_calculado'].sum()
-                meta_prom = df_rep['avance_meta'].mean()
-                
-                doc.add_heading('Análisis Financiero', level=1)
-                doc.add_paragraph(f"En el periodo correspondiente al pago {p_sel}, el municipio de {m_sel} ejecutó un total de ${val_ejec:,.2f}.")
-                
-                doc.add_heading('Análisis Operativo', level=1)
-                doc.add_paragraph(f"Se evidencia un cumplimiento promedio de metas del {meta_prom:.2f}% en las actividades reportadas.")
-                
-                # Creación de tabla en el documento Word
-                table = doc.add_table(rows=1, cols=3)
-                hdr_cells = table.rows[0].cells
-                hdr_cells[0].text = 'Subactividad'
-                hdr_cells[1].text = 'Avance Meta'
-                hdr_cells[2].text = 'Estado'
-                
-                for _, row in df_rep.iterrows():
-                    row_cells = table.add_row().cells
-                    row_cells[0].text = str(row['nombre_subactividad'])
-                    row_cells[1].text = f"{row['avance_meta']}%"
-                    row_cells[2].text = str(row['estado'])
-                
-                nombre_archivo = f"Informe_PIC_{m_sel}_Pago{p_sel}.docx"
-                doc.save(nombre_archivo)
-                with open(nombre_archivo, "rb") as f:
-                    st.download_button("⬇️ Descargar Informe Word", f, file_name=nombre_archivo)
-
