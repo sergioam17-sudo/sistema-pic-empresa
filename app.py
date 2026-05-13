@@ -471,16 +471,18 @@ else:
                 
                 datos_sub = df_sub_todas[df_sub_todas['id_sub'] == sub_sel_id].iloc[0]
                 
-            # Cálculos usando el DataFrame ya cargado (df_s_raw)
-            df_asig_all = get_data("asignacion_municipios")
-            df_asig_actual = df_asig_all[df_asig_all['id_sub'] == sub_sel_id]
+           
+                # Cálculos usando el DataFrame ya cargado (df_s_raw)
+                df_asig_all = get_data("asignacion_municipios")
+                df_asig_actual = df_asig_all[df_asig_all['id_sub'] == sub_sel_id]
 
-            valor_gastado_muni = df_asig_actual['valor_asignado'].sum() if not df_asig_actual.empty else 0
-            saldo_muni = datos_sub['valor_sub'] - valor_gastado_muni
-
+                valor_gastado_muni = df_asig_actual['valor_asignado'].sum() if not df_asig_actual.empty else 0
+                saldo_muni = datos_sub['valor_sub'] - valor_gastado_muni
 
                 # Cuadros de Control
                 col_m1, col_m2 = st.columns(2)
+
+
                 col_m1.metric("Presupuesto Subactividad", f"${datos_sub['valor_sub']:,.2f}")
                 col_m2.metric("Saldo Disponible para Municipios", f"${saldo_muni:,.2f}", delta=f"-${valor_gastado_muni:,.2f} asignado", delta_color="inverse")
 
