@@ -56,7 +56,7 @@ def guardar_nuevo_usuario(nombre, email, clave, rol, muni):
 def get_data(nombre_hoja):
     """Lee datos de la hoja especificada en Google Sheets"""
     # Cambiamos ttl a 10 segundos para no saturar la cuota de Google
-    return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl="10s")
+    return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl="1s")
 
 # --- OPTIMIZACIÓN: Solo inicializar una vez por sesión para ahorrar cuota ---
 if 'db_initialized' not in st.session_state:
