@@ -1,0 +1,3 @@
+[server]
+# Desactiva el observador de archivos para evitar el error de inotify
+folderWatchBlacklist = ["/mount/src/sistema-pic-empresa"]
