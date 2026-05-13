@@ -55,13 +55,21 @@ def guardar_nuevo_usuario(nombre, email, clave, rol, muni):
 # --- CONFIGURACIÓN DE LECTURA ---
 def get_data(nombre_hoja):
     """Lee datos de la hoja especificada en Google Sheets"""
-    return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl=0)
+    # Cambiamos ttl a 10 segundos para no saturar la cuota de Google
+    return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl="10s")
 
-# Inicializar encabezados automáticamente si las hojas están vacías
-try:
-    init_excel_db()
-except Exception as e:
-    st.error(f"Error al conectar con la base de datos: {e}")
+# --- OPTIMIZACIÓN: Solo inicializar una vez por sesión para ahorrar cuota ---
+if 'db_initialized' not in st.session_state:
+    try:
+        init_excel_db()
+        st.session_state['db_initialized'] = True
+    except Exception as e:
+        if "429" in str(e):
+            st.warning("⚠️ Google está procesando muchas solicitudes. Espera 30 segundos y refresca la página.")
+        else:
+            st.error(f"Error al conectar con la base de datos: {e}")
+
+
 
 # --- LISTA DE MUNICIPIOS ---
 
