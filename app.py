@@ -91,15 +91,18 @@ if 'user' not in st.session_state:
                 (df_usuarios['password'].astype(str) == str(pass_input))
             ]
         
-                if not user_match.empty:
-                    # 3. Guardamos los datos en la sesión si hay coincidencia
-                    st.session_state['user'] = user_match.iloc[0]['email']
-                    st.session_state['rol'] = user_match.iloc[0]['rol']
-                    st.session_state['muni_asignado'] = user_match.iloc[0]['municipio_asignado']
-                    st.success(f"Bienvenido {user_match.iloc[0]['nombre_completo']}")
-                    st.rerun()
-                else:
-                    st.sidebar.error("Usuario o contraseña incorrectos.")
+             
+            if not user_match.empty:
+                # 3. Guardamos los datos en la sesión si hay coincidencia
+                st.session_state['user'] = user_match.iloc[0]['email']
+                st.session_state['rol'] = user_match.iloc[0]['rol']
+                st.session_state['muni_asignado'] = user_match.iloc[0]['municipio_asignado']
+                st.success(f"Bienvenido {user_match.iloc[0]['nombre_completo']}")
+                st.rerun()
+            else:
+                st.sidebar.error("Usuario o contraseña incorrectos.")
+
+
 else:
     rol = st.session_state['rol']
     st.sidebar.info(f"**Usuario:** {st.session_state['user']}\n\n**Rol:** {rol}")
@@ -155,39 +158,30 @@ else:
             m3.metric("Pendiente por Cobrar", f"${(total_asig - total_ejec):,.2f}")
 
 
-# Gráfico de Avance usando Pandas para unir hojas
+
             st.write("### Progreso de Metas por Actividad")
             df_asig_g = get_data("asignacion_municipios")
             df_sub_g = get_data("subactividades")
             df_pagos_g = get_data("seguimiento_pagos")
 
             if not df_asig_g.empty:
-                # 1. Filtrar asignaciones del municipio logueado
                 muni_asig = df_asig_g[df_asig_g['municipio'] == muni_user]
-                
-                # 2. Unir con subactividades para obtener los nombres [cite: 133]
-                df_merge = muni_asig.merge(df_sub_g, on="id_sub")
-                
-                # 3. Unir con pagos realizados (si existen) [cite: 134]
-                if not df_pagos_g.empty:
-                    df_merge = df_merge.merge(df_pagos_g, on="id_asig", how="left")
-                    # Agrupar por actividad y sumar avances [cite: 135]
+                if not muni_asig.empty:
+                    df_merge = muni_asig.merge(df_sub_g, on="id_sub")
+                    if not df_pagos_g.empty:
+                        df_merge = df_merge.merge(df_pagos_g, on="id_asig", how="left")
+                    
                     df_grafico = df_merge.groupby('nombre_subactividad').agg({
                         'meta_municipal': 'first',
                         'avance_meta': 'sum'
-               
                     }).reset_index()
-                    
                     df_grafico.columns = ['Actividad', 'Programado', 'Realizado']
-                    
-                    if not df_grafico.empty:
-                        st.bar_chart(df_grafico.set_index('Actividad'))
-                    else:
-                        st.info("No hay datos suficientes para generar el gráfico.")
+                    st.bar_chart(df_grafico.set_index('Actividad'))
                 else:
-                    st.info("No hay reportes de avance registrados para graficar.")
+                    st.info("No hay asignaciones para este municipio.")
             else:
-                st.info("No hay asignaciones registradas para este municipio.")
+                st.info("No hay datos de asignación disponibles.")
+
 
         else:
             # VISTA DEPARTAMENTAL (Parametrizador, Referente, Supervisor) [cite: 13, 81]
@@ -242,8 +236,8 @@ with col_right:
                 df_merge_ult = df_p_ult.merge(df_a_ult, on="id_asig").merge(df_s_ult, on="id_sub")
                 df_final_ult = df_merge_ult[['fecha_registro', 'municipio', 'nombre_subactividad', 'estado']].tail(5) [cite: 146]
                 st.table(df_final_ult) [cite: 146]
-            else:
-                st.info("Sin movimientos recientes en el sistema.")
+            
+
 
 
             else:
