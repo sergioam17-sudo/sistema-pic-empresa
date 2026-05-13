@@ -2,25 +2,13 @@ import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 
-# 1. URL DIRECTA: Al ser pública para 'Enlace', no necesita JSON de Google Cloud
+
+
+# URL corregida (sin parámetros de pestaña específicos)
 URL_DB = "https://docs.google.com/spreadsheets/d/1jRdZX0gNfjWhlb86hHopVkJJrs_9bRIaulZDRzKR0pA/edit?usp=sharing"
 
-# 2. Conexión simplificada (Sin credenciales en Secrets)
+# Crear conexión
 conn = st.connection("gsheets", type=GSheetsConnection)
-
-def get_data(nombre_hoja):
-    # Usamos un TTL de 10 segundos para proteger la cuota gratuita
-    return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl="10s")
-
-# --- OPTIMIZACIÓN CRÍTICA PARA EVITAR ERRORES DE CUOTA ---
-if 'db_initialized' not in st.session_state:
-    try:
-        # Aquí va tu función init_excel_db() corregida
-        init_excel_db()
-        st.session_state['db_initialized'] = True
-    except Exception as e:
-        st.error(f"Error de conexión: {e}")
-
 
 # --- FUNCIÓN PARA INICIALIZAR ENCABEZADOS (AUTOMÁTICO) ---
 
