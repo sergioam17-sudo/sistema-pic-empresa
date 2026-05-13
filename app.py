@@ -23,16 +23,15 @@ def init_excel_db():
     
     for nombre, columnas in tablas.items():
         try:
-            # TTL=0 para forzar lectura fresca y evitar errores de caché
+            # TTL=0 para forzar lectura fresca
             df = conn.read(spreadsheet=URL_DB, worksheet=nombre, ttl=0)
             if df is None or df.empty:
                 df_init = pd.DataFrame(columns=columnas)
                 conn.update(spreadsheet=URL_DB, worksheet=nombre, data=df_init)
         except Exception:
-            # Si la hoja no existe, la crea con los encabezados
+            # Si la hoja no existe físicamente, la crea con los encabezados
             df_init = pd.DataFrame(columns=columnas)
             conn.update(spreadsheet=URL_DB, worksheet=nombre, data=df_init)
-
 
 # --- REEMPLAZO DE 'INSERT INTO' ---
 def guardar_nuevo_usuario(nombre, email, clave, rol, muni):
