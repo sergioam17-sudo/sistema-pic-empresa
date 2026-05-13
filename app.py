@@ -566,20 +566,25 @@ else:
                 
                 datos = df_mis_asig[df_mis_asig['id_asig'] == sel_asig].iloc[0]
                 
-            # Consultar último pago reportado filtrando el DataFrame
-            df_pagos_all = get_data("seguimiento_pagos")
-            if not df_pagos_all.empty:
-                pagos_asig = df_pagos_all[df_pagos_all['id_asig'] == sel_asig]
-                ultimo_pago = pagos_asig['num_pago_actual'].max() if not pagos_asig.empty else 0
-            else:
-                ultimo_pago = 0
+            
 
-            siguiente_pago = ultimo_pago + 1
+                # Consultar último pago reportado filtrando el DataFrame
+                df_pagos_all = get_data("seguimiento_pagos")
+                if not df_pagos_all.empty:
+                    pagos_asig = df_pagos_all[df_pagos_all['id_asig'] == sel_asig]
+                    ultimo_pago = pagos_asig['num_pago_actual'].max() if not pagos_asig.empty else 0
+                else:
+                    ultimo_pago = 0
+
+                siguiente_pago = ultimo_pago + 1
                 
                 if siguiente_pago > datos['num_pagos']:
                     st.success("✅ Todas las cuotas de pago de esta actividad han sido reportadas.")
                 else:
                     st.info(f"Reportando Pago N° {siguiente_pago} de {datos['num_pagos']}")
+
+
+
                     with st.form("form_reporte_muni"):
                         meta_avanc = st.number_input("Avance de Meta realizado en este periodo", min_value=0.0)
                         # Cálculo automático del valor del pago
