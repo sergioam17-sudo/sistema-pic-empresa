@@ -81,6 +81,7 @@ if 'user' not in st.session_state:
     pass_input = st.sidebar.text_input("Contraseña", type="password")
     
     if st.sidebar.button("Ingresar"):
+        
         try:
             # 1. Traemos la hoja de usuarios desde Google Sheets
             df_usuarios = get_data("usuarios")
@@ -90,7 +91,6 @@ if 'user' not in st.session_state:
                 (df_usuarios['email'] == user_input) & 
                 (df_usuarios['password'].astype(str) == str(pass_input))
             ]
-        
              
             if not user_match.empty:
                 # 3. Guardamos los datos en la sesión si hay coincidencia
@@ -101,6 +101,9 @@ if 'user' not in st.session_state:
                 st.rerun()
             else:
                 st.sidebar.error("Usuario o contraseña incorrectos.")
+        except Exception as e:
+            st.sidebar.error(f"Error al conectar con la base de datos: {e}")
+
 
 
 else:
@@ -147,16 +150,19 @@ else:
             else:
                 total_ejecutado = 0
 
-            # Métricas Principales [cite: 57, 60]
+            
+
+            # Métricas Principales con cálculo real desde seguimiento_pagos
             total_asig = df_muni['valor_asignado'].sum()
-            total_ejec = df_muni['ejecutado'].sum() or 0
+            
+            # El total ejecutado proviene de la variable total_ejecutado calculada arriba [cite: 15]
+            total_ejec = total_ejecutado 
             progreso_financiero = (total_ejec / total_asig) if total_asig > 0 else 0
 
             m1, m2, m3 = st.columns(3)
             m1.metric("Presupuesto Asignado", f"${total_asig:,.2f}")
             m2.metric("Total Ejecutado (Pagos OK)", f"${total_ejec:,.2f}", delta=f"{progreso_financiero:.1%}")
             m3.metric("Pendiente por Cobrar", f"${(total_asig - total_ejec):,.2f}")
-
 
 
             st.write("### Progreso de Metas por Actividad")
@@ -240,8 +246,7 @@ with col_right:
 
 
 
-            else:
-                st.info("Sin movimientos recientes en el sistema.")
+            
 
 
 
