@@ -5,7 +5,7 @@ from streamlit_gsheets import GSheetsConnection
 
 
 # URL de tu Excel (asegurate que termina en /edit?usp=sharing o similar)
-URL_DB = "https://docs.google.com/spreadsheets/d/TU_ID_AQUÍ/edit?usp=sharing"
+URL_DB = "https://docs.google.com/spreadsheets/d/1jRdZX0gNfjWhlb86hHopVkJJrs_9bRIaulZDRzKR0pA/edit?usp=sharing"
 
 # Crear conexión
 conn = st.connection("gsheets", type=GSheetsConnection)
