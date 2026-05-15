@@ -259,7 +259,7 @@ else:
                     }).reset_index()
                     
                     df_grafico.columns = ['Actividad', 'Programado', 'Realizado']
-                    st.bar_chart(df_grafico.set_index('Actividad')) [cite: 168]
+                    st.bar_chart(df_grafico.set_index('Actividad'))
 
                 else:
                     st.info("No hay asignaciones para este municipio.")
@@ -593,7 +593,7 @@ else:
                                 "unidad_medida_muni": muni_unidad # <-- Nueva columna asignada
                             }])
                             df_final_asig = pd.concat([df_asig_muni, nueva_asig], ignore_index=True)
-                            safe_update("asignacion_municipios", df_final_asig) [cite: 233]
+                            safe_update("asignacion_municipios", df_final_asig)
                             st.success(f"✅ Asignación exitosa para {muni_nombre} en Excel")
                             st.rerun()
 
