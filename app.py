@@ -647,6 +647,11 @@ else:
                 datos = df_mis_asig[df_mis_asig['id_asig'] == sel_asig].iloc[0]
                 
             
+                # --- NUEVO: Extraer datos para cálculo visual ---
+                meta_total = datos['meta_municipal']
+                valor_total_muni = datos['valor_asignado']
+                unidad_muni = datos.get('unidad_medida_muni', 'unidades')
+
 
 
 
@@ -664,14 +669,21 @@ else:
                     st.success("✅ Todas las cuotas de pago de esta actividad han sido reportadas.")
                 else:
                     st.info(f"Reportando Pago N° {siguiente_pago} de {datos['num_pagos']}")
+                    st.warning(f"📋 **Meta Total Asignada:** {meta_total} {unidad_muni} | **Presupuesto Total:** ${valor_total_muni:,.2f}")
 
 
 
                     with st.form("form_reporte_muni"):
                         meta_avanc = st.number_input("Avance de Meta realizado en este periodo", min_value=0.0)
-                        # Cálculo automático del valor del pago
-                        valor_pago = datos['valor_asignado'] / datos['num_pagos']
-                        st.write(f"Valor a cobrar en este pago: **${valor_pago:,.2f}**")
+                        
+                        # Cálculo automático dinámico
+                        if meta_total > 0:
+                            valor_calculado_dinamico = (meta_avanc / meta_total) * valor_total_muni
+                        else:
+                            valor_calculado_dinamico = 0.0
+                            
+                        st.write(f"💰 **Valor calculado para este reporte:** ${valor_calculado_dinamico:,.2f}")
+                        st.caption(f"*(Basado en el {((meta_avanc/meta_total)*100) if meta_total > 0 else 0:.1f}% de la meta total)*")
                         soporte = st.text_input("Link a carpeta de soportes (Evidencias)")
                         
                         if st.form_submit_button("Enviar a Revisión del Referente"):
@@ -682,7 +694,7 @@ else:
                                 "id_asig": sel_asig, 
                                 "num_pago_actual": siguiente_pago, 
                                 "avance_meta": meta_avanc, 
-                                "valor_calculado": valor_pago, 
+                                "valor_calculado": valor_final_pago, 
                                 "soporte_municipio": soporte, 
                                 "estado": 'PENDIENTE'
                             }])
