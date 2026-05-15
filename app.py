@@ -18,7 +18,7 @@ def init_excel_db():
         "actividades_maestro": ["id_actividad", "nombre_actividad", "descripcion", "meta_global", "unidad_medida", "valor_total_actividad", "programa_responsable"],
         "subactividades": ["id_sub", "id_actividad", "nombre_subactividad", "valor_sub", "meta_sub", "unidad_medida_sub", "peso"],
         "asignacion_municipios": ["id_asig", "id_sub", "municipio", "num_contrato", "num_pagos", "valor_asignado", "meta_municipal"],
-        "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "soporte_municipio", "estado", "acta_referente"]
+        "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "referente_aprobador"]
     }
     
     for nombre, columnas in tablas.items():
@@ -27,11 +27,39 @@ def init_excel_db():
             df = conn.read(spreadsheet=URL_DB, worksheet=nombre, ttl=0)
             if df is None or df.empty:
                 df_init = pd.DataFrame(columns=columnas)
-                conn.update(spreadsheet=URL_DB, worksheet=nombre, data=df_init)
+                safe_update(nombre, df_init)
         except Exception:
             # Si la hoja no existe físicamente, la crea con los encabezados
             df_init = pd.DataFrame(columns=columnas)
-            conn.update(spreadsheet=URL_DB, worksheet=nombre, data=df_init)
+            safe_update(nombre, df_init)
+
+
+import time
+
+# Nueva función para manejar el tráfico de 87 municipios al escribir
+def safe_update(worksheet_name, df_final):
+    max_retries = 3
+    for i in range(max_retries):
+        try:
+            conn.update(spreadsheet=URL_DB, worksheet=worksheet_name, data=df_final)
+            st.cache_data.clear() # Limpia la memoria local para que todos vean el cambio
+            return True
+        except Exception as e:
+            if "429" in str(e):
+                espera = (i + 1) * 5
+                st.warning(f"⚠️ Servidor ocupado (Tráfico alto). Reintentando en {espera}s...")
+                time.sleep(espera)
+            else:
+                st.error(f"Error al sincronizar: {e}")
+                return False
+    return False
+
+
+
+
+
+
+
 
 # --- REEMPLAZO DE 'INSERT INTO' ---
 def guardar_nuevo_usuario(nombre, email, clave, rol, muni):
@@ -45,7 +73,13 @@ def guardar_nuevo_usuario(nombre, email, clave, rol, muni):
     
     # 3. Unir y Subir
     df_final = pd.concat([df_actual, nueva_fila], ignore_index=True)
-    conn.update(spreadsheet=URL_DB, worksheet="usuarios", data=df_final)
+    
+    success = safe_update("usuarios", df_final)
+    if success:
+        st.success("Usuario guardado y sincronizado.")
+
+
+
 
 
 
@@ -53,10 +87,30 @@ def guardar_nuevo_usuario(nombre, email, clave, rol, muni):
 
 
 # --- CONFIGURACIÓN DE LECTURA ---
-def get_data(nombre_hoja):
-    """Lee datos de la hoja especificada en Google Sheets"""
-    # Cambiamos ttl a 10 segundos para no saturar la cuota de Google
-    return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl="1s")
+# --- CONFIGURACIÓN DE LECTURA OPTIMIZADA CON CACHÉ ---
+# Se utiliza st.cache_data para que los 87 municipios consulten la RAM antes que el Drive
+@st.cache_data(ttl=120)  # Mantiene los datos en memoria por 2 minutos para todos
+def get_data_cached(nombre_hoja):
+    return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja)
+
+def get_data(nombre_hoja, forzar=False):
+    if forzar:
+        # Si se acaba de guardar algo, limpiamos la caché y leemos directo
+        st.cache_data.clear()
+        try:
+            return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl="0s")
+        except Exception:
+            time.sleep(2)
+            return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl="0s")
+    else:
+        # Uso de la memoria local para consultas masivas
+        try:
+            return get_data_cached(nombre_hoja)
+        except Exception as e:
+            st.error(f"Error de conexión en {nombre_hoja}. Reintentando...")
+            time.sleep(2)
+            return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl="0s")
+
 
 # --- OPTIMIZACIÓN: Solo inicializar una vez por sesión para ahorrar cuota ---
 if 'db_initialized' not in st.session_state:
@@ -300,7 +354,7 @@ else:
                     }])
                     
                     df_final = pd.concat([df_act, nueva_fila], ignore_index=True)
-                    conn.update(spreadsheet=URL_DB, worksheet="actividades_maestro", data=df_final)
+                    safe_update("actividades_maestro", df_final)
                     st.success("✅ Actividad guardada en Sheets.")
                     st.rerun()
 
@@ -329,7 +383,7 @@ else:
                         else:
                             df_maestro_del = get_data("actividades_maestro")
                             df_maestro_del = df_maestro_del[df_maestro_del['id_actividad'] != id_a_borrar]
-                            conn.update(spreadsheet=URL_DB, worksheet="actividades_maestro", data=df_maestro_del)
+                            safe_update("actividades_maestro", df_maestro_del)
                             st.warning(f"Actividad {id_a_borrar} eliminada del Excel.")
                             st.rerun()
 	
@@ -401,7 +455,7 @@ else:
                                 "peso": sub_peso
                             }])
                             df_final = pd.concat([df_sub, nueva_sub], ignore_index=True)
-                            conn.update(spreadsheet=URL_DB, worksheet="subactividades", data=df_final)
+                            safe_update("subactividades", df_final)
                             st.success("✅ Subactividad agregada al Excel.")
                             st.rerun()
 
@@ -441,7 +495,7 @@ else:
                                     else:
                                         df_sub_upd = get_data("subactividades")
                                         df_sub_upd.loc[df_sub_upd['id_sub'] == id_edit, ['nombre_subactividad', 'meta_sub', 'peso', 'valor_sub']] = [new_nom, new_meta, new_peso, new_val]
-                                        conn.update(spreadsheet=URL_DB, worksheet="subactividades", data=df_sub_upd)
+                                        safe_update("subactividades", df_sub_upd)
                                         st.success("✅ Subactividad actualizada en Excel")
                                         st.rerun()
                         else:
@@ -454,7 +508,7 @@ else:
                             df_sub_del = get_data("subactividades")
                             # Filtramos para mantener todo menos el ID a borrar
                             df_sub_del = df_sub_del[df_sub_del['id_sub'] != id_del]
-                            conn.update(spreadsheet=URL_DB, worksheet="subactividades", data=df_sub_del)
+                            safe_update("subactividades", df_sub_del)
                             st.warning(f"⚠️ Subactividad {id_del} eliminada del Excel")
                             st.rerun()
                 else:
@@ -529,7 +583,7 @@ else:
                                 "meta_municipal": muni_meta
                             }])
                             df_final_asig = pd.concat([df_asig_muni, nueva_asig], ignore_index=True)
-                            conn.update(spreadsheet=URL_DB, worksheet="asignacion_municipios", data=df_final_asig)
+                            safe_update("asignacion_municipios", df_final_asig)
                             st.success(f"✅ Asignación exitosa para {muni_nombre} en Excel")
                             st.rerun()
 
@@ -545,7 +599,7 @@ else:
                         if st.button("Confirmar Borrado Municipal", type="primary"):
                             df_asig_del = get_data("asignacion_municipios")
                             df_asig_del = df_asig_del[df_asig_del['id_asig'] != id_asig_del]
-                            conn.update(spreadsheet=URL_DB, worksheet="asignacion_municipios", data=df_asig_del)
+                            safe_update("asignacion_municipios", df_asig_del)
                             st.warning("⚠️ Asignación eliminada del Excel")
                             st.rerun()
 
@@ -623,7 +677,7 @@ else:
                                 "estado": 'PENDIENTE'
                             }])
                             df_final_pagos = pd.concat([df_pagos, nueva_fila_pago], ignore_index=True)
-                            conn.update(spreadsheet=URL_DB, worksheet="seguimiento_pagos", data=df_final_pagos)
+                            safe_update("seguimiento_pagos", df_final_pagos)
                             st.success("✅ Reporte enviado exitosamente al Excel.")
 
                             st.rerun()
@@ -689,7 +743,7 @@ else:
                         df_rev = get_data("seguimiento_pagos")
                         # Actualizamos estado y link del acta
                         df_rev.loc[df_rev['id_seguimiento'] == id_rev, ['estado', 'acta_referente']] = ['REVISADO_REFERENTE', acta_link]
-                        conn.update(spreadsheet=URL_DB, worksheet="seguimiento_pagos", data=df_rev)
+                        safe_update("seguimiento_pagos", df_rev)
                         st.success("✅ Validación registrada en Excel.")
                         st.rerun()
 
@@ -743,7 +797,7 @@ else:
                             "rol": u_rol, "municipio_asignado": u_muni
                         }])
                         df_final = pd.concat([df_users, nueva_fila], ignore_index=True)
-                        conn.update(spreadsheet=URL_DB, worksheet="usuarios", data=df_final)
+                        safe_update("usuarios", df_final)
                         st.success(f"Usuario {u_email} registrado correctamente.")
                         st.rerun()
 
@@ -772,7 +826,7 @@ else:
                         if st.button("Guardar Cambios"):
                             df_u = get_data("usuarios")
                             df_u.loc[df_u['id_usuario'] == id_update, ['nombre_completo', 'rol']] = [new_nombre, new_rol]
-                            conn.update(spreadsheet=URL_DB, worksheet="usuarios", data=df_u)
+                            safe_update("usuarios", df_u)
                             st.success("✅ Usuario actualizado en Excel.")
                             st.rerun()
 
@@ -785,7 +839,7 @@ else:
                         else:
                             df_u_del = get_data("usuarios")
                             df_u_del = df_u_del[df_u_del['id_usuario'] != id_delete]
-                            conn.update(spreadsheet=URL_DB, worksheet="usuarios", data=df_u_del)
+                            safe_update("usuarios", df_u_del)
                             st.warning(f"⚠️ Usuario {id_delete} eliminado del Excel")
                             st.rerun()
             else:
