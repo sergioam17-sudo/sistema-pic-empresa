@@ -668,51 +668,48 @@ else:
                 if siguiente_pago > datos['num_pagos']:
                     st.success("✅ Todas las cuotas de pago de esta actividad han sido reportadas.")
                 else:
-                    st.info(f"Reportando Pago N° {siguiente_pago} de {datos['num_pagos']}")
-                    st.warning(f"📋 **Meta Total Asignada:** {meta_total} {unidad_muni} | **Presupuesto Total:** ${valor_total_muni:,.2f}")
-
-
+                    st.info(f"Reportando Pago N° {siguiente_pago} de {datos['num_pagos']}") [cite: 249]
+                    st.warning(f"📋 **Meta Total Asignada:** {meta_total} {unidad_muni} | **Presupuesto Total:** ${valor_total_muni:,.2f}") [cite: 249, 250]
 
                     with st.form("form_reporte_muni"):
-                        meta_avanc = st.number_input("Avance de Meta realizado en este periodo", min_value=0.0)
+                        meta_avanc = st.number_input("Avance de Meta realizado en este periodo", min_value=0.0) [cite: 250]
                         
-                        # CÁLCULO PROPORCIONAL: (Avance Actual / Meta Total) * Valor Total
-                        if meta_total > 0:
-                            valor_calculado_dinamico = (meta_avanc / meta_total) * valor_total_muni
+                        # CÁLCULO PROPORCIONAL DINÁMICO
+                        if meta_total > 0: [cite: 251]
+                            valor_calculado_dinamico = (meta_avanc / meta_total) * valor_total_muni [cite: 251]
                         else:
-                            valor_calculado_dinamico = 0.0
+                            valor_calculado_dinamico = 0.0 [cite: 252]
                             
-                        st.write(f"💰 **Valor calculado para este reporte:** ${valor_calculado_dinamico:,.2f}")
-                        st.caption(f"*(Basado en el {((meta_avanc/meta_total)*100) if meta_total > 0 else 0:.1f}% de la meta total)*")
+                        st.write(f"💰 **Valor calculado para este reporte:** ${valor_calculado_dinamico:,.2f}") [cite: 252]
+                        st.caption(f"*(Basado en el {((meta_avanc/meta_total)*100) if meta_total > 0 else 0:.1f}% de la meta total)*") [cite: 253]
                         
-                        soporte = st.text_input("Link a carpeta de soportes (Evidencias)")
+                        soporte = st.text_input("Link a carpeta de soportes (Evidencias)") [cite: 253]
                         
                         if st.form_submit_button("Enviar a Revisión del Referente"):
-                            # VALIDACIÓN DE SEGURIDAD
-                            if meta_avanc <= 0:
-                                st.error("⚠️ El avance debe ser mayor a 0.")
+                            if meta_avanc <= 0: [cite: 254, 255]
+                                st.error("⚠️ El avance debe ser mayor a 0.") [cite: 255]
                             else:
-                                df_pagos = get_data("seguimiento_pagos")
-                                nuevo_id_seg = 1 if df_pagos.empty else df_pagos['id_seguimiento'].max() + 1
+                                df_pagos = get_data("seguimiento_pagos") [cite: 255]
+                                nuevo_id_seg = 1 if df_pagos.empty else df_pagos['id_seguimiento'].max() + 1 [cite: 256]
                                 
-                                # RE-CÁLCULO PARA EL GUARDADO (Asegura que no se guarde 0)
-                                valor_final_a_guardar = (meta_avanc / meta_total) * valor_total_muni if meta_total > 0 else 0
+                                # RE-CÁLCULO EXACTO PARA EL GUARDADO
+                                valor_final_a_guardar = (meta_avanc / meta_total) * valor_total_muni if meta_total > 0 else 0 [cite: 257]
                                 
                                 nueva_fila_pago = pd.DataFrame([{
-                                    "id_seguimiento": nuevo_id_seg,
-                                    "id_asig": sel_asig, 
-                                    "num_pago_actual": siguiente_pago, 
-                                    "avance_meta": meta_avanc, 
-                                    "valor_calculado": valor_final_a_guardar, # <-- AQUÍ ESTABA EL ERROR
-                                    "soporte_municipio": soporte, 
-                                    "estado": 'PENDIENTE',
-                                    "fecha_registro": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
+                                    "id_seguimiento": nuevo_id_seg, [cite: 258]
+                                    "id_asig": sel_asig, [cite: 258]
+                                    "num_pago_actual": siguiente_pago, [cite: 259]
+                                    "avance_meta": meta_avanc, [cite: 259]
+                                    "valor_calculado": valor_final_a_guardar, # SE GUARDA EL VALOR PROPORCIONAL [cite: 260]
+                                    "soporte_municipio": soporte, [cite: 260]
+                                    "estado": 'PENDIENTE', [cite: 260]
+                                    "fecha_registro": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M") [cite: 261]
                                 }])
                                 
-                                df_final_pagos = pd.concat([df_pagos, nueva_fila_pago], ignore_index=True)
-                                if safe_update("seguimiento_pagos", df_final_pagos):
-                                    st.success(f"✅ Reporte enviado por ${valor_final_a_guardar:,.2f}")
-                                    st.rerun()
+                                df_final_pagos = pd.concat([df_pagos, nueva_fila_pago], ignore_index=True) [cite: 262]
+                                if safe_update("seguimiento_pagos", df_final_pagos): [cite: 262]
+                                    st.success(f"✅ Reporte enviado por ${valor_final_a_guardar:,.2f}") [cite: 263]
+                                    st.rerun() [cite: 263]
 
 
 # --- TABLA DE SEGUIMIENTO PARA MUNICIPIO ---
