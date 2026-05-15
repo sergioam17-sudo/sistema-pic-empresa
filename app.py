@@ -800,8 +800,19 @@ else:
         df_s_glob = get_data("subactividades")
         
         if not df_p_glob.empty:
+            # Unimos de forma segura las colecciones de datos
             df_global = df_p_glob.merge(df_a_glob, on="id_asig").merge(df_s_glob, on="id_sub")
-            df_global = df_global[['id_seguimiento', 'municipio', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'estado', 'soporte_municipio', 'acta_referente']]
+            
+            # Definimos de forma estricta los campos requeridos para la vista
+            cols_deseadas = ['id_seguimiento', 'municipio', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'estado', 'soporte_municipio', 'acta_referente']
+            
+            # Verificación técnica: si una columna no existe, la inicializamos vacía
+            for col in cols_deseadas:
+                if col not in df_global.columns:
+                    df_global[col] = ""
+            
+            # Filtrado seguro sin peligro de KeyError
+            df_global = df_global[cols_deseadas]
             df_global.columns = ['ID', 'Municipio', 'Actividad', 'Pago N°', 'Valor', 'Estado', 'Link Evidencia', 'Link Acta']
         else:
             df_global = pd.DataFrame()
