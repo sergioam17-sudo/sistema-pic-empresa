@@ -676,7 +676,7 @@ else:
                     with st.form("form_reporte_muni"):
                         meta_avanc = st.number_input("Avance de Meta realizado en este periodo", min_value=0.0)
                         
-                        # Cálculo automático dinámico
+                        # CÁLCULO PROPORCIONAL: (Avance Actual / Meta Total) * Valor Total
                         if meta_total > 0:
                             valor_calculado_dinamico = (meta_avanc / meta_total) * valor_total_muni
                         else:
@@ -684,25 +684,35 @@ else:
                             
                         st.write(f"💰 **Valor calculado para este reporte:** ${valor_calculado_dinamico:,.2f}")
                         st.caption(f"*(Basado en el {((meta_avanc/meta_total)*100) if meta_total > 0 else 0:.1f}% de la meta total)*")
+                        
                         soporte = st.text_input("Link a carpeta de soportes (Evidencias)")
                         
                         if st.form_submit_button("Enviar a Revisión del Referente"):
-                            df_pagos = get_data("seguimiento_pagos")
-                            nuevo_id_seg = 1 if df_pagos.empty else df_pagos['id_seguimiento'].max() + 1
-                            nueva_fila_pago = pd.DataFrame([{
-                                "id_seguimiento": nuevo_id_seg,
-                                "id_asig": sel_asig, 
-                                "num_pago_actual": siguiente_pago, 
-                                "avance_meta": meta_avanc, 
-                                "valor_calculado": valor_final_pago, 
-                                "soporte_municipio": soporte, 
-                                "estado": 'PENDIENTE'
-                            }])
-                            df_final_pagos = pd.concat([df_pagos, nueva_fila_pago], ignore_index=True)
-                            safe_update("seguimiento_pagos", df_final_pagos)
-                            st.success("✅ Reporte enviado exitosamente al Excel.")
-
-                            st.rerun()
+                            # VALIDACIÓN DE SEGURIDAD
+                            if meta_avanc <= 0:
+                                st.error("⚠️ El avance debe ser mayor a 0.")
+                            else:
+                                df_pagos = get_data("seguimiento_pagos")
+                                nuevo_id_seg = 1 if df_pagos.empty else df_pagos['id_seguimiento'].max() + 1
+                                
+                                # RE-CÁLCULO PARA EL GUARDADO (Asegura que no se guarde 0)
+                                valor_final_a_guardar = (meta_avanc / meta_total) * valor_total_muni if meta_total > 0 else 0
+                                
+                                nueva_fila_pago = pd.DataFrame([{
+                                    "id_seguimiento": nuevo_id_seg,
+                                    "id_asig": sel_asig, 
+                                    "num_pago_actual": siguiente_pago, 
+                                    "avance_meta": meta_avanc, 
+                                    "valor_calculado": valor_final_a_guardar, # <-- AQUÍ ESTABA EL ERROR
+                                    "soporte_municipio": soporte, 
+                                    "estado": 'PENDIENTE',
+                                    "fecha_registro": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
+                                }])
+                                
+                                df_final_pagos = pd.concat([df_pagos, nueva_fila_pago], ignore_index=True)
+                                if safe_update("seguimiento_pagos", df_final_pagos):
+                                    st.success(f"✅ Reporte enviado por ${valor_final_a_guardar:,.2f}")
+                                    st.rerun()
 
 
 # --- TABLA DE SEGUIMIENTO PARA MUNICIPIO ---
