@@ -17,7 +17,7 @@ def init_excel_db():
         "usuarios": ["id_usuario", "nombre_completo", "email", "password", "rol", "municipio_asignado"],
         "actividades_maestro": ["id_actividad", "nombre_actividad", "descripcion", "meta_global", "unidad_medida", "valor_total_actividad", "programa_responsable"],
         "subactividades": ["id_sub", "id_actividad", "nombre_subactividad", "valor_sub", "meta_sub", "unidad_medida_sub", "peso"],
-        "asignacion_municipios": ["id_asig", "id_sub", "municipio", "num_contrato", "num_pagos", "valor_asignado", "meta_municipal"],
+        "asignacion_municipios": ["id_asig", "id_sub", "municipio", "num_contrato", "num_pagos", "valor_asignado", "meta_municipal", "unidad_medida_muni"],
         "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "referente_aprobador"]
     }
     
@@ -247,12 +247,20 @@ else:
                     if not df_pagos_g.empty:
                         df_merge = df_merge.merge(df_pagos_g, on="id_asig", how="left")
                     
+                    # --- SOLUCIÓN AL KEYERROR ---
+                    # Si no hay pagos, la columna 'avance_meta' no existirá tras el merge. 
+                    # La creamos artificialmente con ceros para evitar el cierre de la app.
+                    if 'avance_meta' not in df_merge.columns:
+                        df_merge['avance_meta'] = 0
+                    
                     df_grafico = df_merge.groupby('nombre_subactividad').agg({
                         'meta_municipal': 'first',
                         'avance_meta': 'sum'
                     }).reset_index()
+                    
                     df_grafico.columns = ['Actividad', 'Programado', 'Realizado']
-                    st.bar_chart(df_grafico.set_index('Actividad'))
+                    st.bar_chart(df_grafico.set_index('Actividad')) [cite: 168]
+
                 else:
                     st.info("No hay asignaciones para este municipio.")
             else:
@@ -565,6 +573,7 @@ else:
                     
                     muni_valor = m2.number_input("Valor a asignar ($)", min_value=0.0, max_value=float(datos_sub['valor_sub']), step=1000.0)
                     muni_meta = m2.number_input("Meta Municipal", min_value=0.0)
+                    muni_unidad = m2.text_input("Unidad de Medida Municipal (Ej: Personas, Visitas)") # <-- Nuevo campo
                     
                     if st.form_submit_button("📍 Confirmar Asignación Municipal"):
                         if muni_valor > (saldo_muni + 0.01):
@@ -580,10 +589,11 @@ else:
                                 "num_contrato": n_contrato, 
                                 "num_pagos": n_pagos, 
                                 "valor_asignado": muni_valor, 
-                                "meta_municipal": muni_meta
+                                "meta_municipal": muni_meta,
+                                "unidad_medida_muni": muni_unidad # <-- Nueva columna asignada
                             }])
                             df_final_asig = pd.concat([df_asig_muni, nueva_asig], ignore_index=True)
-                            safe_update("asignacion_municipios", df_final_asig)
+                            safe_update("asignacion_municipios", df_final_asig) [cite: 233]
                             st.success(f"✅ Asignación exitosa para {muni_nombre} en Excel")
                             st.rerun()
 
@@ -591,7 +601,7 @@ else:
                 if not df_asig_actual.empty:
                     st.write("---")
                     st.write("**Asignaciones actuales por Municipio:**")
-                    st.dataframe(df_asig_actual[['id_asig', 'municipio', 'num_contrato', 'num_pagos', 'valor_asignado', 'meta_municipal']], use_container_width=True)
+                    st.dataframe(df_asig_actual[['id_asig', 'municipio', 'num_contrato', 'num_pagos', 'valor_asignado', 'meta_municipal', 'unidad_medida_muni']], use_container_width=True)
 
                     # Opción para Eliminar
                     with st.expander("🗑️ Eliminar Asignación Municipal"):
