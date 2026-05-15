@@ -18,7 +18,7 @@ def init_excel_db():
         "actividades_maestro": ["id_actividad", "nombre_actividad", "descripcion", "meta_global", "unidad_medida", "valor_total_actividad", "programa_responsable"],
         "subactividades": ["id_sub", "id_actividad", "nombre_subactividad", "valor_sub", "meta_sub", "unidad_medida_sub", "peso"],
         "asignacion_municipios": ["id_asig", "id_sub", "municipio", "num_contrato", "num_pagos", "valor_asignado", "meta_municipal", "unidad_medida_muni"],
-        "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "referente_aprobador"]
+        "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "referente_aprobador","estado", "acta_referente"]
     }
     
     for nombre, columnas in tablas.items():
@@ -720,21 +720,31 @@ else:
         st.subheader("📋 Historial de mis Reportes y Estados")
         
         muni_actual = st.session_state.get('muni_asignado')
-        # Consulta para ver el estado de los pagos del municipio logueado
-       
+        
         # Obtener historial filtrando con Pandas
         df_p_muni = get_data("seguimiento_pagos")
         df_a_muni = get_data("asignacion_municipios")
         df_s_muni = get_data("subactividades")
         
         if not df_p_muni.empty:
+            # Asegurar que existan las columnas base en pagos antes del merge
+            columnas_requeridas = ['id_seguimiento', 'id_asig', 'num_pago_actual', 'valor_calculado', 'avance_meta', 'estado']
+            for col in columnas_requeridas:
+                if col not in df_p_muni.columns:
+                    df_p_muni[col] = "N/A"
+
             df_merge_muni = df_p_muni.merge(df_a_muni, on="id_asig").merge(df_s_muni, on="id_sub")
             df_seguimiento_muni = df_merge_muni[df_merge_muni['municipio'] == muni_actual]
-            df_seguimiento_muni = df_seguimiento_muni[['id_seguimiento', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'avance_meta', 'estado', 'acta_referente']]
+            
+            # Lista de columnas finales para mostrar (verificando existencia)
+            cols_finales = ['id_seguimiento', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'avance_meta', 'estado']
+            if 'acta_referente' in df_seguimiento_muni.columns:
+                cols_finales.append('acta_referente')
+                
+            # Seleccionar solo las que realmente existan para evitar el KeyError
+            df_seguimiento_muni = df_seguimiento_muni[[c for c in cols_finales if c in df_seguimiento_muni.columns]]
         else:
             df_seguimiento_muni = pd.DataFrame()
-
-
 
         if not df_seguimiento_muni.empty:
             st.dataframe(df_seguimiento_muni, use_container_width=True)
