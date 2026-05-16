@@ -848,7 +848,14 @@ else:
                                     df_pagos_master[c] = ""
 
                             if dictamen == "Aprobar Actividad (ACEPTADA)":
-                                df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, ['estado', 'motivo_rechazo']] = ['ACEPTADA', 'Aprobado sin novedades']
+                                # Forzamos la conversión a tipo string para evitar conflictos de dtypes de Pandas
+                                df_pagos_master['estado'] = df_pagos_master['estado'].astype(str)
+                                df_pagos_master['motivo_rechazo'] = df_pagos_master['motivo_rechazo'].astype(str)
+                                
+                                # Asignación individual y segura por columnas
+                                df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'estado'] = 'ACEPTADA'
+                                df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'motivo_rechazo'] = 'Aprobado sin novedades'
+                                
                                 if safe_update("seguimiento_pagos", df_pagos_master):
                                     st.success(f"✅ El pago ID {id_evaluar} fue marcado como ACEPTADA exitosamente.")
                                     st.rerun()
@@ -856,11 +863,18 @@ else:
                                 if not motivo.strip():
                                     st.error("❌ Error estructural: Debe ingresar el motivo del rechazo para poder devolver el trámite.")
                                 else:
-                                    # El estado regresa a PENDIENTE, reiniciando el flujo para el Municipio
-                                    df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, ['estado', 'motivo_rechazo']] = ['PENDIENTE', motivo]
+                                    # Forzamos la conversión a tipo string para evitar conflictos de dtypes de Pandas
+                                    df_pagos_master['estado'] = df_pagos_master['estado'].astype(str)
+                                    df_pagos_master['motivo_rechazo'] = df_pagos_master['motivo_rechazo'].astype(str)
+                                    
+                                    # El estado regresa a PENDIENTE, reiniciando el flujo para el Municipio de forma segura
+                                    df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'estado'] = 'PENDIENTE'
+                                    df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'motivo_rechazo'] = motivo
+                                    
                                     if safe_update("seguimiento_pagos", df_pagos_master):
                                         st.warning(f"⚠️ Reporte devuelto al municipio. Estado restablecido a PENDIENTE.")
                                         st.rerun()
+
 
 
 # --- CONSOLIDADO GLOBAL DE PAGOS (VISTA DEPARTAMENTO) ---
