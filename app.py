@@ -880,6 +880,9 @@ else:
 # ==============================================================================
             # GENERADOR DE INFORMES DE EJECUCIÓN Y FINANCIERO (CON CONTROL DE TIEMPO E IA)
             # ==============================================================================
+            # ==============================================================================
+            # GENERADOR DE INFORMES DE EJECUCIÓN Y FINANCIERO (CON CONTROL DE TIEMPO E IA)
+            # ==============================================================================
             st.write("---")
             st.header("📄 Generador de Informes Ejecutivos y Financieros")
             st.write("Genere reportes oficiales con análisis de datos e IA descriptiva.")
@@ -889,7 +892,7 @@ else:
             if not df_a_inf_init.empty and 'municipio' in df_a_inf_init.columns:
                 lista_municipios_dinamica = sorted(df_a_inf_init['municipio'].dropna().unique().tolist())
             else:
-                lista_municipios_dinamica = ["SANTANDER"] # Respaldo en caso de error de lectura
+                lista_municipios_dinamica = ["SANTANDER"]
 
             c_inf1, c_inf2 = st.columns(2)
             tipo_informe = c_inf1.selectbox("Ámbito del Informe", ["DEPARTAMENTAL", "MUNICIPIO ESPECÍFICO"])
@@ -898,16 +901,14 @@ else:
             if tipo_informe == "MUNICIPIO ESPECÍFICO":
                 muni_filtro = c_inf2.selectbox("Seleccione el Municipio", lista_municipios_dinamica)
 
-            # Inicializar variables de control de tiempo en la sesión si no existen
             if 'ultimo_informe_tiempo' not in st.session_state:
                 st.session_state['ultimo_informe_tiempo'] = None
 
             if st.button("📊 Construir e Invocación de Reporte Experto"):
                 import time
                 ahora = time.time()
-                tiempo_limite = 300  # 5 minutos en segundos
+                tiempo_limite = 300  # 5 minutos
                 
-                # Validar si ya ha solicitado un informe antes y calcular el remanente
                 if st.session_state['ultimo_informe_tiempo'] is not None:
                     tiempo_transcurrido = ahora - st.session_state['ultimo_informe_tiempo']
                     if tiempo_transcurrido < tiempo_limite:
@@ -918,7 +919,6 @@ else:
 
                 with st.spinner("Procesando datos financieros y estructurando informe técnico..."):
                     
-                    # 2. Extracción y consolidación de datos según el filtro
                     df_p_inf = get_data("seguimiento_pagos")
                     df_a_inf = get_data("asignacion_municipios")
                     df_s_inf = get_data("subactividades")
@@ -926,7 +926,6 @@ else:
                     if df_p_inf.empty or df_a_inf.empty or df_s_inf.empty:
                         st.error("Datos insuficientes en el sistema para consolidar un informe.")
                     else:
-                        # Consolidación estructural de la base de datos
                         df_completo = df_p_inf.merge(df_a_inf, on="id_asig").merge(df_s_inf, on="id_sub")
                         
                         if tipo_informe == "MUNICIPIO ESPECÍFICO":
@@ -939,22 +938,18 @@ else:
                         if df_filtrado.empty:
                             st.warning("No se encontraron registros de ejecución para el filtro seleccionado.")
                         else:
-                            # 3. Métricas Financieras y Estadísticas Avanzadas
                             total_asignado_inf = df_filtrado['valor_asignado'].unique().sum() if tipo_informe == "MUNICIPIO ESPECÍFICO" else df_filtrado['valor_asignado'].sum()
                             total_ejecutado_inf = df_filtrado[df_filtrado['estado'] == 'ACEPTADA']['valor_calculado'].sum()
                             saldo_pendiente_inf = total_asignado_inf - total_ejecutado_inf
                             porcentaje_ejecucion = (total_ejecutado_inf / total_asignado_inf * 100) if total_asignado_inf > 0 else 0
                             
-                            # Estadísticas de rendimiento operativo (metas)
                             meta_programada = df_filtrado['meta_municipal'].sum()
                             meta_avanzada = df_filtrado['avance_meta'].sum()
                             porcentaje_operativo = (meta_avanzada / meta_programada * 100) if meta_programada > 0 else 0
                             
-                            # Desviación y variabilidad (Análisis Estadístico)
                             desviacion_pagos = df_filtrado['valor_calculado'].std() if len(df_filtrado) > 1 else 0
                             promedio_pago = df_filtrado['valor_calculado'].mean() if not df_filtrado.empty else 0
 
-                            # 4. Construcción del Prompt de Contexto para la IA
                             contexto_ia = f"""
                             Actúa como un Consorcio Experto de Alta Gerencia de Proyectos, Financiero, Salubrista Público, Epidemiólogo y Científico de Datos.
                             Analiza los siguientes indicadores del Plan de Intervenciones Colectivas (PIC) de Santander para el ámbito: {tipo_informe} {f'({muni_filtro})' if muni_filtro else ''}.
@@ -980,19 +975,33 @@ else:
                             5. Recomendaciones de Optimización de Procesos Basadas en Evidencia (Mínimo 3 estrategias viables).
                             """
 
-                            # 5. Intervención de la Inteligencia Artificial (Gemini - API Tradicional)
+                            # 5. Intervención de la Inteligencia Artificial (Bypass seguro mediante Petición HTTP nativa)
                             try:
-                                import google.generativeai as genai
-                                genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                                model = genai.GenerativeModel('gemini-pro')
-                                response = model.generate_content(contexto_ia)
-                                analisis_ia = response.text
+                                import requests
+                                import json
+
+                                api_key = st.secrets["GEMINI_API_KEY"]
+                                # Usamos el endpoint REST oficial de Google Gemini
+                                url_api = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
                                 
-                                # REGISTRO EXITOSO: Guardamos la marca de tiempo actual
-                                st.session_state['ultimo_informe_tiempo'] = ahora
+                                headers = {"Content-Type": "application/json"}
+                                payload = {
+                                    "contents": [{
+                                        "parts": [{"text": contexto_ia}]
+                                    }]
+                                }
+
+                                res = requests.post(url_api, headers=headers, data=json.dumps(payload))
+                                
+                                if res.status_code == 200:
+                                    datos_json = res.json()
+                                    analisis_ia = datos_json['candidates'][0]['content']['parts'][0]['text']
+                                    st.session_state['ultimo_informe_tiempo'] = ahora
+                                else:
+                                    raise Exception(f"Error de API externa (Código: {res.status_code})")
                                 
                             except Exception as e:
-                                analisis_ia = f"Análisis Automatizado PIC:\nEl sistema operó con éxito. Métricas financieras consolidadas al {porcentaje_ejecucion:.1f}% de ejecución presupuestal y {porcentaje_operativo:.1f}% de cumplimiento en campo técnico operacional. (Nota: No se pudo conectar con la API de IA para la narrativa extendida: {e})"
+                                analisis_ia = f"Análisis Automatizado PIC:\nEl sistema operó con éxito. Métricas financieras consolidadas al {porcentaje_ejecucion:.1f}% de ejecución presupuestal y {porcentaje_operativo:.1f}% de cumplimiento en campo técnico operacional. (Nota: Conexión HTTP alternativa fallida: {e})"
 
                             # 6. Despliegue en Pantalla (Dashboard del Reporte)
                             st.success("📝 ¡Informe Consolidado con Éxito!")
@@ -1069,7 +1078,6 @@ else:
                                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                             )
             # ==============================================================================
-
 
 
 # --- CONSOLIDADO GLOBAL DE PAGOS (VISTA DEPARTAMENTO) ---
