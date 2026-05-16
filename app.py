@@ -18,7 +18,7 @@ def init_excel_db():
         "actividades_maestro": ["id_actividad", "nombre_actividad", "descripcion", "meta_global", "unidad_medida", "valor_total_actividad", "programa_responsable"],
         "subactividades": ["id_sub", "id_actividad", "nombre_subactividad", "valor_sub", "meta_sub", "unidad_medida_sub", "peso"],
         "asignacion_municipios": ["id_asig", "id_sub", "municipio", "num_contrato", "num_pagos", "valor_asignado", "meta_municipal", "unidad_medida_muni"],
-        "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "referente_aprobador","estado", "acta_referente"]
+        "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "referente_aprobador", "estado", "acta_referente", "motivo_rechazo"]
     }
     
     for nombre, columnas in tablas.items():
@@ -756,38 +756,111 @@ else:
 
     # --- MÓDULO: REVISIÓN (REFERENTE) ---
     elif menu == "⚖️ Revisión":
-        if rol != "REFERENTE_DEPARTAMENTAL":
-            st.warning("Acceso exclusivo para REFERENTE_DEPARTAMENTAL.")
+        if rol not in ["REFERENTE_DEPARTAMENTAL", "SUPERVISOR"]:
+            st.warning("Acceso exclusivo para personal evaluador del departamento.")
         else:
-            st.title("⚖️ Validación y Carga de Actas")
             # Cargamos las tablas necesarias
             df_p = get_data("seguimiento_pagos")
             df_a = get_data("asignacion_municipios")
             df_s = get_data("subactividades")
 
-            if not df_p.empty:
-                # Realizamos los "JOIN" usando Pandas
-                df_merge = df_p.merge(df_a, on="id_asig").merge(df_s, on="id_sub")
-                df_pendientes = df_merge[df_merge['estado'] == 'PENDIENTE']
-                # Seleccionamos solo las columnas necesarias para mostrar
-                df_pendientes = df_pendientes[['id_seguimiento', 'municipio', 'num_contrato', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'soporte_municipio']]
-            else:
-                df_pendientes = pd.DataFrame()
-            
-            if df_pendientes.empty:
-                st.write("No hay reportes municipales pendientes de revisión.")
-            else:
-                st.dataframe(df_pendientes, use_container_width=True)
-                with st.form("form_revision_referente"):
-                    id_rev = st.number_input("ID de Seguimiento a dar OK:", min_value=1, step=1)
-                    acta_link = st.text_input("Enlace al Acta de Conformidad (PDF)")
-                    if st.form_submit_button("Dar OK y enviar a Supervisor"):
-                        df_rev = get_data("seguimiento_pagos")
-                        # Actualizamos estado y link del acta
-                        df_rev.loc[df_rev['id_seguimiento'] == id_rev, ['estado', 'acta_referente']] = ['REVISADO_REFERENTE', acta_link]
-                        safe_update("seguimiento_pagos", df_rev)
-                        st.success("✅ Validación registrada en Excel.")
-                        st.rerun()
+            # --- SUB-MÓDULO EXCLUSIVO: REFERENTE DEPARTAMENTAL ---
+            if rol == "REFERENTE_DEPARTAMENTAL":
+                st.title("⚖️ Validación y Carga de Actas (Referente)")
+                if not df_p.empty:
+                    df_merge = df_p.merge(df_a, on="id_asig").merge(df_s, on="id_sub")
+                    df_pendientes = df_merge[df_merge['estado'] == 'PENDIENTE']
+                    df_pendientes = df_pendientes[['id_seguimiento', 'municipio', 'num_contrato', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'soporte_municipio']]
+                else:
+                    df_pendientes = pd.DataFrame()
+                
+                if df_pendientes.empty:
+                    st.write("No hay reportes municipales pendientes de revisión.")
+                else:
+                    st.dataframe(df_pendientes, use_container_width=True)
+                    with st.form("form_revision_referente"):
+                        id_rev = st.number_input("ID de Seguimiento a dar OK:", min_value=1, step=1)
+                        acta_link = st.text_input("Enlace al Acta de Conformidad (PDF)")
+                        if st.form_submit_button("Dar OK y enviar a Supervisor"):
+                            df_rev = get_data("seguimiento_pagos")
+                            df_rev.loc[df_rev['id_seguimiento'] == id_rev, ['estado', 'acta_referente', 'referente_aprobador']] = ['REVISADO_REFERENTE', acta_link, st.session_state['user']]
+                            safe_update("seguimiento_pagos", df_rev)
+                            st.success("✅ Validación registrada en Excel y enviada a Supervisor.")
+                            st.rerun()
+
+            # --- SUB-MÓDULO EXCLUSIVO: SUPERVISOR DEPARTAMENTAL ---
+            elif rol == "SUPERVISOR":
+                st.title("👁️ Panel de Supervisión y Dictamen Final")
+                st.write("Audite los reportes que ya cuentan con el aval técnico del Referente asignado.")
+
+                if not df_p.empty:
+                    df_merge = df_p.merge(df_a, on="id_asig").merge(df_s, on="id_sub")
+                    
+                    # Normalización defensiva de columnas opcionales
+                    for col in ['referente_aprobador', 'acta_referente', 'motivo_rechazo', 'soporte_municipio']:
+                        if col not in df_merge.columns:
+                            df_merge[col] = ""
+
+                    # El supervisor evalúa lo que el referente ya revisó
+                    df_pendientes_super = df_merge[df_merge['estado'] == 'REVISADO_REFERENTE']
+                else:
+                    df_pendientes_super = pd.DataFrame()
+
+                if df_pendientes_super.empty:
+                    st.success("✅ No hay actividades pendientes por evaluar de su parte.")
+                else:
+                    st.subheader(f"📋 Reportes listos para Dictamen Final ({len(df_pendientes_super)})")
+                    
+                    # Diccionario indexado para el selector visual
+                    opciones_super = {
+                        f"ID {row['id_seguimiento']} - {row['municipio']} (Pago {row['num_pago_actual']})": row['id_seguimiento']
+                        for _, row in df_pendientes_super.iterrows()
+                    }
+                    
+                    sel_texto = st.selectbox("Seleccione el registro a auditar:", list(opciones_super.keys()))
+                    id_evaluar = opciones_super[sel_texto]
+                    
+                    fila_sel = df_pendientes_super[df_pendientes_super['id_seguimiento'] == id_evaluar].iloc[0]
+                    
+                    # Ficha de Auditoría Visual
+                    with st.container(border=True):
+                        c_aud1, c_aud2 = st.columns(2)
+                        with c_aud1:
+                            st.write(f"**Municipio:** {fila_sel['municipio']}")
+                            st.write(f"**Actividad:** {fila_sel['nombre_subactividad']}")
+                            st.write(f"**Monto Proporcional:** ${fila_sel['valor_calculado']:,.2f}")
+                        with c_aud2:
+                            st.write(f"**🧑‍💼 Avalado por Referente:** :blue[{fila_sel['referente_aprobador']}]")
+                            st.write(f"🔗 [Ver Evidencias del Municipio]({fila_sel['soporte_municipio']})")
+                            st.write(f"📄 [Ver Acta Adjunta del Referente]({fila_sel['acta_referente']})")
+
+                    # Formulario de Dictamen Final
+                    with st.form("form_dictamen_supervisor"):
+                        dictamen = st.radio("Resolución de la Supervisión:", ["Aprobar Actividad (ACEPTADA)", "Rechazar y Devolver al Municipio"])
+                        motivo = st.text_area("Motivo del rechazo / Observaciones (Obligatorio en caso de rechazo):")
+                        
+                        if st.form_submit_button("Confirmar y Sincronizar Dictamen"):
+                            df_pagos_master = get_data("seguimiento_pagos")
+                            
+                            # Asegurar columnas en la matriz estructural
+                            for c in ['estado', 'motivo_rechazo']:
+                                if c not in df_pagos_master.columns:
+                                    df_pagos_master[c] = ""
+
+                            if dictamen == "Aprobar Actividad (ACEPTADA)":
+                                df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, ['estado', 'motivo_rechazo']] = ['ACEPTADA', 'Aprobado sin novedades']
+                                if safe_update("seguimiento_pagos", df_pagos_master):
+                                    st.success(f"✅ El pago ID {id_evaluar} fue marcado como ACEPTADA exitosamente.")
+                                    st.rerun()
+                            else:
+                                if not motivo.strip():
+                                    st.error("❌ Error estructural: Debe ingresar el motivo del rechazo para poder devolver el trámite.")
+                                else:
+                                    # El estado regresa a PENDIENTE, reiniciando el flujo para el Municipio
+                                    df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, ['estado', 'motivo_rechazo']] = ['PENDIENTE', motivo]
+                                    if safe_update("seguimiento_pagos", df_pagos_master):
+                                        st.warning(f"⚠️ Reporte devuelto al municipio. Estado restablecido a PENDIENTE.")
+                                        st.rerun()
 
 
 # --- CONSOLIDADO GLOBAL DE PAGOS (VISTA DEPARTAMENTO) ---
@@ -803,17 +876,16 @@ else:
             # Unimos de forma segura las colecciones de datos
             df_global = df_p_glob.merge(df_a_glob, on="id_asig").merge(df_s_glob, on="id_sub")
             
-            # Definimos de forma estricta los campos requeridos para la vista
-            cols_deseadas = ['id_seguimiento', 'municipio', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'estado', 'soporte_municipio', 'acta_referente']
+            # Definimos de forma estricta los campos requeridos para la vista incluyendo aprobador y rechazo
+            cols_deseadas = ['id_seguimiento', 'municipio', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'referente_aprobador', 'estado', 'motivo_rechazo']
             
-            # Verificación técnica: si una columna no existe, la inicializamos vacía
             for col in cols_deseadas:
                 if col not in df_global.columns:
                     df_global[col] = ""
             
-            # Filtrado seguro sin peligro de KeyError
             df_global = df_global[cols_deseadas]
-            df_global.columns = ['ID', 'Municipio', 'Actividad', 'Pago N°', 'Valor', 'Estado', 'Link Evidencia', 'Link Acta']
+            df_global.columns = ['ID', 'Municipio', 'Actividad', 'Pago N°', 'Valor', 'Referente que Avaló', 'Estado', 'Observaciones / Motivo de Rechazo']
+
         else:
             df_global = pd.DataFrame()
 
