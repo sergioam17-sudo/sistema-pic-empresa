@@ -882,15 +882,21 @@ else:
             # ==============================================================================
             st.write("---")
             st.header("📄 Generador de Informes Ejecutivos y Financieros")
-            st.write("Genere reportes oficiales con análisis estadístico, operativo e IA descriptiva.")
+            st.write("Genere reportes oficiales con análisis de datos e IA descriptiva.")
 
-            # 1. Filtros de generación
+            # 1. Filtros de generación con extracción dinámica de municipios para evitar KeyError
+            df_a_inf_init = get_data("asignacion_municipios")
+            if not df_a_inf_init.empty and 'municipio' in df_a_inf_init.columns:
+                lista_municipios_dinamica = sorted(df_a_inf_init['municipio'].dropna().unique().tolist())
+            else:
+                lista_municipios_dinamica = ["SANTANDER"] # Respaldo en caso de error de lectura
+
             c_inf1, c_inf2 = st.columns(2)
             tipo_informe = c_inf1.selectbox("Ámbito del Informe", ["DEPARTAMENTAL", "MUNICIPIO ESPECÍFICO"])
             
             muni_filtro = None
             if tipo_informe == "MUNICIPIO ESPECÍFICO":
-                muni_filtro = c_inf2.selectbox("Seleccione el Municipio", municipios_santander)
+                muni_filtro = c_inf2.selectbox("Seleccione el Municipio", lista_municipios_dinamica)
 
             # Inicializar variables de control de tiempo en la sesión si no existen
             if 'ultimo_informe_tiempo' not in st.session_state:
@@ -908,7 +914,7 @@ else:
                         minutos_restantes = int((tiempo_limite - tiempo_transcurrido) // 60)
                         segundos_restantes = int((tiempo_limite - tiempo_transcurrido) % 60)
                         st.error(f"🛑 Control de Seguridad: Ha generado un reporte recientemente. Por favor espere {minutos_restantes} min y {segundos_restantes} seg antes de solicitar otro análisis a la IA.")
-                        st.stop() # Frena la ejecución del bloque inmediatamente
+                        st.stop()
 
                 with st.spinner("Procesando datos financieros y estructurando informe técnico..."):
                     
@@ -1063,6 +1069,8 @@ else:
                                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                             )
             # ==============================================================================
+
+
 
 # --- CONSOLIDADO GLOBAL DE PAGOS (VISTA DEPARTAMENTO) ---
         st.write("---")
