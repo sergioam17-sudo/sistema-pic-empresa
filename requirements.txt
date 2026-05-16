@@ -1,4 +1,3 @@
 pandas
 python-docx
 streamlit-gsheets
-google-generativeai
