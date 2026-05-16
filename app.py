@@ -1,4 +1,5 @@
-#En la Versión 5.3 se incluye generación del documento en word
+#En la Versión 5.3 se incluye generación del documento en Word
+#En la versión 5.4 se incluy las columnas de nombre del referente y el supervisor que aprueba
 
 import streamlit as st
 import pandas as pd
@@ -20,7 +21,7 @@ def init_excel_db():
         "actividades_maestro": ["id_actividad", "nombre_actividad", "descripcion", "meta_global", "unidad_medida", "valor_total_actividad", "programa_responsable"],
         "subactividades": ["id_sub", "id_actividad", "nombre_subactividad", "valor_sub", "meta_sub", "unidad_medida_sub", "peso"],
         "asignacion_municipios": ["id_asig", "id_sub", "municipio", "num_contrato", "num_pagos", "valor_asignado", "meta_municipal", "unidad_medida_muni"],
-        "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "referente_aprobador", "estado", "acta_referente", "motivo_rechazo"]
+        "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "soporte_url", "estado", "referente_aprobador", "acta_referente", "supervisor_aprobador", "motivo_rechazo"]
     }
     
     for nombre, columnas in tablas.items():
@@ -785,7 +786,9 @@ else:
                         acta_link = st.text_input("Enlace al Acta de Conformidad (PDF)")
                         if st.form_submit_button("Dar OK y enviar a Supervisor"):
                             df_rev = get_data("seguimiento_pagos")
-                            df_rev.loc[df_rev['id_seguimiento'] == id_rev, ['estado', 'acta_referente', 'referente_aprobador']] = ['REVISADO_REFERENTE', acta_link, st.session_state['user']]
+                            df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'estado'] = 'REVISADO_REFERENTE'
+                            df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'acta_referente'] = str(acta_link)
+                            df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'referente_aprobador'] = str(st.session_state['user'])
                             safe_update("seguimiento_pagos", df_rev)
                             st.success("✅ Validación registrada en Excel y enviada a Supervisor.")
                             st.rerun()
@@ -854,9 +857,11 @@ else:
                                 df_pagos_master['estado'] = df_pagos_master['estado'].astype(str)
                                 df_pagos_master['motivo_rechazo'] = df_pagos_master['motivo_rechazo'].astype(str)
                                 
+                                
                                 # Asignación individual y segura por columnas
                                 df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'estado'] = 'ACEPTADA'
                                 df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'motivo_rechazo'] = 'Aprobado sin novedades'
+                                df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'supervisor_aprobador'] = str(st.session_state['user'])
                                 
                                 if safe_update("seguimiento_pagos", df_pagos_master):
                                     st.success(f"✅ El pago ID {id_evaluar} fue marcado como ACEPTADA exitosamente.")
@@ -1103,22 +1108,31 @@ else:
             # Unimos de forma segura las colecciones de datos
             df_global = df_p_glob.merge(df_a_glob, on="id_asig").merge(df_s_glob, on="id_sub")
             
-            # Definimos de forma estricta los campos requeridos para la vista incluyendo aprobador y rechazo
-            cols_deseadas = ['id_seguimiento', 'municipio', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'referente_aprobador', 'estado', 'motivo_rechazo']
-            
-            for col in cols_deseadas:
+            # Forzar validación defensiva de columnas para evitar fallos de renderizado
+            cols_verificar = ['id_seguimiento', 'municipio', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'referente_aprobador', 'acta_referente', 'supervisor_aprobador', 'estado', 'motivo_rechazo']
+            for col in cols_verificar:
                 if col not in df_global.columns:
-                    df_global[col] = ""
-            
-            df_global = df_global[cols_deseadas]
-            df_global.columns = ['ID', 'Municipio', 'Actividad', 'Pago N°', 'Valor', 'Referente que Avaló', 'Estado', 'Observaciones / Motivo de Rechazo']
+                    df_global[col] = None
 
+            # Campos requeridos para la visualización oficial en pantalla
+            cols_deseadas = ['id_seguimiento', 'municipio', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'referente_aprobador', 'acta_referente', 'supervisor_aprobador', 'estado', 'motivo_rechazo']
+            df_global = df_global[cols_deseadas].copy()
+            
+            # Tratamiento de vacíos (NaN)
+            df_global['referente_aprobador'] = df_global['referente_aprobador'].fillna("Pendiente Aval")
+            df_global['acta_referente'] = df_global['acta_referente'].fillna("Sin Acta cargada")
+            df_global['supervisor_aprobador'] = df_global['supervisor_aprobador'].fillna("Pendiente Firma")
+            df_global['motivo_rechazo'] = df_global['motivo_rechazo'].fillna("Sin observaciones")
+            
+            df_global.columns = ['ID', 'Municipio', 'Actividad', 'Pago N°', 'Valor', 'Referente que Avaló', 'Acta Referente', 'Supervisor que Aprobó', 'Estado', 'Observaciones / Motivo de Rechazo']
+            
+            # Formatear columna monetaria para presentación gerencial
+            df_global['Valor'] = df_global['Valor'].map(lambda x: f"${x:,.2f}" if isinstance(x, (int, float)) else x)
         else:
             df_global = pd.DataFrame()
 
         if not df_global.empty:
             st.dataframe(df_global, use_container_width=True)
-
 
 # --- MÓDULO: GESTIÓN DE USUARIOS ---
     elif menu == "👤 Gestión Usuarios":
