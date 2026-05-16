@@ -3,4 +3,4 @@ pandas
 python-docx
 psycopg2-binary
 streamlit-gsheets
-google-genai
+google-generativeai
