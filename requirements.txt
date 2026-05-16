@@ -1,4 +1,4 @@
 pandas
 python-docx
 streamlit-gsheets
-google-genai
+google-generativeai==0.4.0
