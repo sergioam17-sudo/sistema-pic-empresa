@@ -974,15 +974,15 @@ else:
                             5. Recomendaciones de Optimización de Procesos Basadas en Evidencia (Mínimo 3 estrategias viables).
                             """
 
-                            # 5. Intervención de la Inteligencia Artificial (Gemini)
+                            # 5. Intervención de la Inteligencia Artificial (Gemini - API Tradicional)
                             try:
-                                import google.generai as genai
+                                import google.generativeai as genai
                                 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                                 model = genai.GenerativeModel('gemini-pro')
                                 response = model.generate_content(contexto_ia)
                                 analisis_ia = response.text
                                 
-                                # 💡 REGISTRO EXITOSO: Guardamos la marca de tiempo actual solo si la IA respondió bien
+                                # REGISTRO EXITOSO: Guardamos la marca de tiempo actual
                                 st.session_state['ultimo_informe_tiempo'] = ahora
                                 
                             except Exception as e:
