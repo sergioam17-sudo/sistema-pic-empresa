@@ -1,3 +1,5 @@
+#En la Versión 5.3 se incluye generación del documento en word
+
 import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
@@ -875,7 +877,192 @@ else:
                                         st.warning(f"⚠️ Reporte devuelto al municipio. Estado restablecido a PENDIENTE.")
                                         st.rerun()
 
+# ==============================================================================
+            # GENERADOR DE INFORMES DE EJECUCIÓN Y FINANCIERO (CON CONTROL DE TIEMPO E IA)
+            # ==============================================================================
+            st.write("---")
+            st.header("📄 Generador de Informes Ejecutivos y Financieros")
+            st.write("Genere reportes oficiales con análisis estadístico, operativo e IA descriptiva.")
 
+            # 1. Filtros de generación
+            c_inf1, c_inf2 = st.columns(2)
+            tipo_informe = c_inf1.selectbox("Ámbito del Informe", ["DEPARTAMENTAL", "MUNICIPIO ESPECÍFICO"])
+            
+            muni_filtro = None
+            if tipo_informe == "MUNICIPIO ESPECÍFICO":
+                muni_filtro = c_inf2.selectbox("Seleccione el Municipio", municipios_santander)
+
+            # Inicializar variables de control de tiempo en la sesión si no existen
+            if 'ultimo_informe_tiempo' not in st.session_state:
+                st.session_state['ultimo_informe_tiempo'] = None
+
+            if st.button("📊 Construir e Invocación de Reporte Experto"):
+                import time
+                ahora = time.time()
+                tiempo_limite = 300  # 5 minutos en segundos
+                
+                # Validar si ya ha solicitado un informe antes y calcular el remanente
+                if st.session_state['ultimo_informe_tiempo'] is not None:
+                    tiempo_transcurrido = ahora - st.session_state['ultimo_informe_tiempo']
+                    if tiempo_transcurrido < tiempo_limite:
+                        minutos_restantes = int((tiempo_limite - tiempo_transcurrido) // 60)
+                        segundos_restantes = int((tiempo_limite - tiempo_transcurrido) % 60)
+                        st.error(f"🛑 Control de Seguridad: Ha generado un reporte recientemente. Por favor espere {minutos_restantes} min y {segundos_restantes} seg antes de solicitar otro análisis a la IA.")
+                        st.stop() # Frena la ejecución del bloque inmediatamente
+
+                with st.spinner("Procesando datos financieros y estructurando informe técnico..."):
+                    
+                    # 2. Extracción y consolidación de datos según el filtro
+                    df_p_inf = get_data("seguimiento_pagos")
+                    df_a_inf = get_data("asignacion_municipios")
+                    df_s_inf = get_data("subactividades")
+                    
+                    if df_p_inf.empty or df_a_inf.empty or df_s_inf.empty:
+                        st.error("Datos insuficientes en el sistema para consolidar un informe.")
+                    else:
+                        # Consolidación estructural de la base de datos
+                        df_completo = df_p_inf.merge(df_a_inf, on="id_asig").merge(df_s_inf, on="id_sub")
+                        
+                        if tipo_informe == "MUNICIPIO ESPECÍFICO":
+                            df_filtrado = df_completo[df_completo['municipio'] == muni_filtro]
+                            titulo_reporte = f"Informe de Supervisión Integral PIC - Municipio: {muni_filtro}"
+                        else:
+                            df_filtrado = df_completo
+                            titulo_reporte = "Informe de Supervisión Integral PIC - Cobertura Departamental (Santander)"
+                        
+                        if df_filtrado.empty:
+                            st.warning("No se encontraron registros de ejecución para el filtro seleccionado.")
+                        else:
+                            # 3. Métricas Financieras y Estadísticas Avanzadas
+                            total_asignado_inf = df_filtrado['valor_asignado'].unique().sum() if tipo_informe == "MUNICIPIO ESPECÍFICO" else df_filtrado['valor_asignado'].sum()
+                            total_ejecutado_inf = df_filtrado[df_filtrado['estado'] == 'ACEPTADA']['valor_calculado'].sum()
+                            saldo_pendiente_inf = total_asignado_inf - total_ejecutado_inf
+                            porcentaje_ejecucion = (total_ejecutado_inf / total_asignado_inf * 100) if total_asignado_inf > 0 else 0
+                            
+                            # Estadísticas de rendimiento operativo (metas)
+                            meta_programada = df_filtrado['meta_municipal'].sum()
+                            meta_avanzada = df_filtrado['avance_meta'].sum()
+                            porcentaje_operativo = (meta_avanzada / meta_programada * 100) if meta_programada > 0 else 0
+                            
+                            # Desviación y variabilidad (Análisis Estadístico)
+                            desviacion_pagos = df_filtrado['valor_calculado'].std() if len(df_filtrado) > 1 else 0
+                            promedio_pago = df_filtrado['valor_calculado'].mean() if not df_filtrado.empty else 0
+
+                            # 4. Construcción del Prompt de Contexto para la IA
+                            contexto_ia = f"""
+                            Actúa como un Consorcio Experto de Alta Gerencia de Proyectos, Financiero, Salubrista Público, Epidemiólogo y Científico de Datos.
+                            Analiza los siguientes indicadores del Plan de Intervenciones Colectivas (PIC) de Santander para el ámbito: {tipo_informe} {f'({muni_filtro})' if muni_filtro else ''}.
+                            
+                            DATOS FINANCIEROS:
+                            - Presupuesto Asignado Estructural: ${total_asignado_inf:,.2f}
+                            - Presupuesto Devengado / Ejecutado (ACEPTADO): ${total_ejecutado_inf:,.2f}
+                            - Saldo Líquido Remanente: ${saldo_pendiente_inf:,.2f}
+                            - Eficiencia Financiera Relativa: {porcentaje_ejecucion:.2f}%
+                            - Desviación Estándar de Desembolsos: ${desviacion_pagos:,.2f}
+                            - Ticket Promedio de Registro Financiero: ${promedio_pago:,.2f}
+                            
+                            DATOS OPERATIVOS DE SALUD PÚBLICA:
+                            - Meta Nominal Agregada: {meta_programada} intervenciones
+                            - Avance Físico Realizado: {meta_avanzada} intervenciones
+                            - Índice de Cumplimiento Operativo: {porcentaje_operativo:.2f}%
+                            
+                            Escribe un informe corporativo riguroso, técnico y analítico. Debe incluir de forma obligatoria las siguientes secciones detalladas con un lenguaje de auditoría médica y epidemiológica:
+                            1. Resumen Ejecutivo y Diagnóstico de Situación actual.
+                            2. Análisis Estadístico-Financiero y de Desviaciones del Gasto (Explicar volatilidad o estancamiento del presupuesto).
+                            3. Evaluación Operativa y Epidemiológica (Impacto real de las metas de salud en la población objeto).
+                            4. Conclusiones Clínico-Administrativas.
+                            5. Recomendaciones de Optimización de Procesos Basadas en Evidencia (Mínimo 3 estrategias viables).
+                            """
+
+                            # 5. Intervención de la Inteligencia Artificial (Gemini)
+                            try:
+                                import google.generai as genai
+                                genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+                                model = genai.GenerativeModel('gemini-pro')
+                                response = model.generate_content(contexto_ia)
+                                analisis_ia = response.text
+                                
+                                # 💡 REGISTRO EXITOSO: Guardamos la marca de tiempo actual solo si la IA respondió bien
+                                st.session_state['ultimo_informe_tiempo'] = ahora
+                                
+                            except Exception as e:
+                                analisis_ia = f"Análisis Automatizado PIC:\nEl sistema operó con éxito. Métricas financieras consolidadas al {porcentaje_ejecucion:.1f}% de ejecución presupuestal y {porcentaje_operativo:.1f}% de cumplimiento en campo técnico operacional. (Nota: No se pudo conectar con la API de IA para la narrativa extendida: {e})"
+
+                            # 6. Despliegue en Pantalla (Dashboard del Reporte)
+                            st.success("📝 ¡Informe Consolidado con Éxito!")
+                            
+                            st.subheader("📊 Datos Consolidados del Reporte")
+                            inf_c1, inf_c2, inf_c3 = st.columns(3)
+                            inf_c1.metric("Eficiencia Financiera", f"{porcentaje_ejecucion:.1%}")
+                            inf_c2.metric("Cumplimiento Físico de Metas", f"{porcentaje_operativo:.1%}")
+                            inf_c3.metric("Ticket Promedio Ejecución", f"${promedio_pago:,.0f}")
+                            
+                            st.markdown("### 🤖 Dictamen Analítico Generado por IA")
+                            st.markdown(analisis_ia)
+
+                            # 7. Generación del Documento Word (.DOCX)
+                            from docx import Document
+                            from docx.shared import Inches, Pt
+                            import io
+
+                            doc = Document()
+                            
+                            for section in doc.sections:
+                                section.top_margin = Inches(1)
+                                section.bottom_margin = Inches(1)
+                                section.left_margin = Inches(1)
+                                section.right_margin = Inches(1)
+
+                            title_p = doc.add_paragraph()
+                            title_run = title_p.add_run(titulo_reporte.upper())
+                            title_run.bold = True
+                            title_run.font.size = Pt(16)
+                            title_run.font.name = 'Arial'
+                            title_p.alignment = 1
+
+                            doc.add_paragraph(f"Fecha de Emisión Automatizada: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
+                            doc.add_paragraph(f"Emitido por: {st.session_state['user']} (Rol: {st.session_state['rol']})")
+                            doc.add_paragraph("------------------------------------------------------------------------------------------------------------------------")
+
+                            doc.add_heading('1. Matriz de Indicadores Cuantitativos', level=2)
+                            table = doc.add_table(rows=1, cols=2)
+                            table.style = 'Light Shading Accent 1'
+                            hdr_cells = table.rows[0].cells
+                            hdr_cells[0].text = 'Métrica Evaluada'
+                            hdr_cells[1].text = 'Valor Registrado'
+
+                            métricas = [
+                                ("Presupuesto Total Asignado", f"${total_asignado_inf:,.2f}"),
+                                ("Presupuesto Aceptado/Ejecutado", f"${total_ejecutado_inf:,.2f}"),
+                                ("Saldo Líquido Disponible", f"${saldo_pendiente_inf:,.2f}"),
+                                ("Porcentaje de Ejecución Financiera", f"{porcentaje_ejecucion:.2f}%"),
+                                ("Meta Nominal Municipal", f"{meta_programada} Unidades"),
+                                ("Avance Físico Registrado", f"{meta_avanzada} Unidades"),
+                                ("Porcentaje de Cumplimiento Físico", f"{porcentaje_operativo:.2f}%"),
+                                ("Desviación Estándar Presupuestal", f"${desviacion_pagos:,.2f}")
+                            ]
+
+                            for m, v in métricas:
+                                row_cells = table.add_row().cells
+                                row_cells[0].text = m
+                                row_cells[1].text = v
+
+                            doc.add_paragraph("\n")
+                            
+                            doc.add_heading('2. Cuerpo Analítico, Conclusiones y Recomendaciones (IA)', level=2)
+                            doc.add_paragraph(analisis_ia)
+
+                            bio = io.BytesIO()
+                            doc.save(bio)
+                            bio.seek(0)
+
+                            st.download_button(
+                                label="📥 Descargar Informe Oficial en Word (.docx)",
+                                data=bio,
+                                file_name=f"Informe_PIC_{tipo_informe.replace(' ', '_')}_{pd.Timestamp.now().strftime('%Y%md')}.docx",
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                            )
+            # ==============================================================================
 
 # --- CONSOLIDADO GLOBAL DE PAGOS (VISTA DEPARTAMENTO) ---
         st.write("---")
