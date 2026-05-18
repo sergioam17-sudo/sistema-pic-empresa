@@ -1,5 +1,6 @@
 #En la Versión 5.3 se incluye generación del documento en Word
 #En la versión 5.4 se incluy las columnas de nombre del referente y el supervisor que aprueba
+#En la vesión 5.5 Se incluye y mejora el análisis del dasboard
 
 import streamlit as st
 import pandas as pd
@@ -201,129 +202,277 @@ else:
         st.rerun()
 
 
-# --- MÓDULO: DASHBOARD DINÁMICO ---
+# --- MÓDULO: DASHBOARD DINÁMICO REINGENIERÍA ANALÍTICA ---
     if menu == "🏠 Dashboard":
-        st.title(f"📊 Panel de Control - {rol.replace('_', ' ')}")
+        st.title(f"📊 Business Intelligence Dashboard - PIC Santander")
+        st.caption(f"Sistema Integrado de Analítica para el Plan de Intervenciones Colectivas")
 
-        if rol == "MUNICIPIO_EJECUTOR":
-            muni_user = st.session_state.get('muni_asignado')
-            st.subheader(f"Estado de Ejecución: {muni_user}")
+        # -------------------------------------------------------------
+        # 1. CARGA Y PREPARACIÓN DE MATRICES DE DATOS (CONSOLIDACIÓN PANDAS)
+        # -------------------------------------------------------------
+        df_act_raw = get_data("actividades_maestro")
+        df_sub_raw = get_data("subactividades")
+        df_asig_raw = get_data("asignacion_municipios")
+        df_pagos_raw = get_data("seguimiento_pagos")
 
-            # Datos del Municipio (Carga desde Sheets y filtrado con Pandas)
-            df_asig_all = get_data("asignacion_municipios")
-            df_pagos_all = get_data("seguimiento_pagos")
-            
-            # Filtrar asignaciones del municipio
-            df_muni = df_asig_all[df_asig_all['municipio'] == muni_user]
-            
-            # Calcular ejecutado (esto reemplaza las subconsultas SQL)
-            if not df_pagos_all.empty:
-                pagos_muni = df_pagos_all[(df_pagos_all['estado'] != 'PENDIENTE')]
-                total_ejecutado = pagos_muni['valor_calculado'].sum()
-            else:
-                total_ejecutado = 0
-
-            
-
-            # Métricas Principales con cálculo real desde seguimiento_pagos
-            total_asig = df_muni['valor_asignado'].sum()
-            
-            # El total ejecutado proviene de la variable total_ejecutado calculada arriba [cite: 15]
-            total_ejec = total_ejecutado 
-            progreso_financiero = (total_ejec / total_asig) if total_asig > 0 else 0
-
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Presupuesto Asignado", f"${total_asig:,.2f}")
-            m2.metric("Total Ejecutado (Pagos OK)", f"${total_ejec:,.2f}", delta=f"{progreso_financiero:.1%}")
-            m3.metric("Pendiente por Cobrar", f"${(total_asig - total_ejec):,.2f}")
-
-
-            st.write("### Progreso de Metas por Actividad")
-            df_asig_g = get_data("asignacion_municipios")
-            df_sub_g = get_data("subactividades")
-            df_pagos_g = get_data("seguimiento_pagos")
-
-            if not df_asig_g.empty:
-                muni_asig = df_asig_g[df_asig_g['municipio'] == muni_user]
-                if not muni_asig.empty:
-                    df_merge = muni_asig.merge(df_sub_g, on="id_sub")
-                    if not df_pagos_g.empty:
-                        df_merge = df_merge.merge(df_pagos_g, on="id_asig", how="left")
-                    
-                    # --- SOLUCIÓN AL KEYERROR ---
-                    # Si no hay pagos, la columna 'avance_meta' no existirá tras el merge. 
-                    # La creamos artificialmente con ceros para evitar el cierre de la app.
-                    if 'avance_meta' not in df_merge.columns:
-                        df_merge['avance_meta'] = 0
-                    
-                    df_grafico = df_merge.groupby('nombre_subactividad').agg({
-                        'meta_municipal': 'first',
-                        'avance_meta': 'sum'
-                    }).reset_index()
-                    
-                    df_grafico.columns = ['Actividad', 'Programado', 'Realizado']
-                    st.bar_chart(df_grafico.set_index('Actividad'))
-
-                else:
-                    st.info("No hay asignaciones para este municipio.")
-            else:
-                st.info("No hay datos de asignación disponibles.")
-
-
+        # Validación estructural de seguridad para evitar caídas de la app
+        if df_asig_raw.empty or df_sub_raw.empty:
+            st.info("ℹ️ Esperando la parametrización de actividades y asignaciones municipales para proyectar métricas.")
         else:
-            # VISTA DEPARTAMENTAL (Parametrizador, Referente, Supervisor) [cite: 13, 81]
-            st.subheader("Análisis Global de Inversión y Cumplimiento")
-
-            # Datos Globales [cite: 20, 53, 87]
-            # Datos Globales calculados con Pandas
-            df_act_global = get_data("actividades_maestro")
-            df_asig_global = get_data("asignacion_municipios")
-            df_pagos_global = get_data("seguimiento_pagos")
+            # Unión estructural: Asignación Municipio + Subactividad base
+            df_master = df_asig_raw.merge(df_sub_raw, on="id_sub", suffixes=('_muni', '_sub'))
             
-            total_pic = df_act_global['valor_total_actividad'].sum() if not df_act_global.empty else 0
-            total_asig = df_asig_global['valor_asignado'].sum() if not df_asig_global.empty else 0
-            total_pagos = df_pagos_global[df_pagos_global['estado']=='REVISADO_REFERENTE']['valor_calculado'].sum() if not df_pagos_global.empty else 0
+            # Cruzar con Actividades Maestro si existen datos para traer el Programa Responsable
+            if not df_act_raw.empty:
+                df_master = df_master.merge(df_act_raw[['id_actividad', 'nombre_actividad', 'programa_responsable']], on="id_actividad", how="left")
+            
+            # Tratamiento y consolidación de la tabla de ejecución (seguimiento_pagos)
+            if not df_pagos_raw.empty:
+                # Filtrar únicamente los pagos validados por el área técnica o aprobados finales
+                df_pagos_validados = df_pagos_raw[df_pagos_raw['estado'].isin(['ACEPTADA', 'REVISADO_REFERENTE'])].copy()
+                
+                # Agrupación por id_asig para obtener la ejecución histórica acumulada
+                df_pagos_agg = df_pagos_validados.groupby('id_asig').agg({
+                    'valor_calculado': 'sum',
+                    'avance_meta': 'sum'
+                }).reset_index()
+                df_pagos_agg.columns = ['id_asig', 'total_ejecutado_financiero', 'total_ejecutado_fisico']
+                
+                # Unir el acumulado al DataFrame Maestro
+                df_master = df_master.merge(df_pagos_agg, on="id_asig", how="left")
+            else:
+                df_master['total_ejecutado_financiero'] = 0.0
+                df_master['total_ejecutado_fisico'] = 0.0
 
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Presupuesto Total PIC", f"${total_pic:,.0f}")
-            c2.metric("Asignado a Municipios", f"${total_asig:,.0f}")
-            c3.metric("Ejecución (Pagos OK)", f"${total_pagos:,.0f}")
-            c4.metric("Saldo Disponible", f"${(total_pic - total_asig):,.0f}")
+            # Limpieza de valores nulos provocados por el merge de las actividades sin pagos reportados
+            df_master['total_ejecutado_financiero'] = df_master['total_ejecutado_financiero'].fillna(0.0)
+            df_master['total_ejecutado_fisico'] = df_master['total_ejecutado_fisico'].fillna(0.0)
+            
+            # Forzar casting numérico correcto de las variables del esquema original
+            df_master['valor_asignado'] = df_master['valor_asignado'].astype(float)
+            df_master['meta_municipal'] = df_master['meta_municipal'].astype(float)
 
-            # Gráficos Dinámicos [cite: 86]
-            col_left, col_right = st.columns(2)
-
-            with col_left:
-                st.write("#### 💰 Inversión por Municipio (Top 10)")
-                df_asig = get_data("asignacion_municipios")
-                df_muni_inv = df_asig.groupby('municipio')['valor_asignado'].sum().reset_index()
-                st.bar_chart(df_muni_inv.set_index('municipio'))
-
-  
-            with col_right:
-                st.write("#### 🚦 Estado de los Trámites de Pago")
-                df_pagos_est = get_data("seguimiento_pagos")
-                if not df_pagos_est.empty:
-                    # Usamos value_counts de Pandas para resumir estados
-                    df_resumen_est = df_pagos_est['estado'].value_counts().reset_index()
-                    df_resumen_est.columns = ['Estado', 'Cantidad']
-                    st.write(df_resumen_est)
+            # -------------------------------------------------------------
+            # 2. SEGMENTACIÓN LÓGICA DE INTERFAZ BASADA EN ROLES VIGENTES
+            # -------------------------------------------------------------
+            
+            # =============================================================
+            # PERFIL: MUNICIPIO_EJECUTOR (Vista de Autocontrol Técnico)
+            # =============================================================
+            if rol == "MUNICIPIO_EJECUTOR":
+                muni_user = st.session_state.get('muni_asignado')
+                st.subheader(f"📍 Panel de Fiscalización Local - Municipio: {muni_user}")
+                
+                # Filtrar la matriz para dejar exclusivamente las metas asignadas a la entidad actual
+                df_muni_data = df_master[df_master['municipio'] == muni_user].copy()
+                
+                if df_muni_data.empty:
+                    st.warning(f"⚠️ El municipio {muni_user} no cuenta con asignaciones presupuestales registradas en el sistema.")
                 else:
-                    st.info("No hay trámites de pago iniciados.")
-            
-            st.write("#### ⚠️ Últimos Movimientos del Sistema")
-            
-            # Unimos las tablas con Pandas para mostrar los últimos registros
-            df_p_ult = get_data("seguimiento_pagos")
-            df_a_ult = get_data("asignacion_municipios")
-            df_s_ult = get_data("subactividades")
+                    # Métricas Financieras y Operativas Clave
+                    muni_total_asig = df_muni_data['valor_asignado'].sum()
+                    muni_total_ejec = df_muni_data['total_ejecutado_financiero'].sum()
+                    muni_saldo_pendiente = muni_total_asig - muni_total_ejec
+                    muni_porc_global = (muni_total_ejec / muni_total_asig * 100) if muni_total_asig > 0 else 0
+                    
+                    # Sistema de Semáforo basado en Percentiles Teóricos de Avance Contractual
+                    if muni_porc_global < 33.3:
+                        color_semaforo = "🔴 EJECUCIÓN CRÍTICA"
+                        help_msg = "Alerta: El avance financiero se encuentra en el percentil inferior. Requiere intervención inmediata."
+                    elif 33.3 <= muni_porc_global < 66.6:
+                        color_semaforo = "🟡 EN ALERTA TEMPRANA"
+                        help_msg = "Atención: Progreso intermedio. Monitorear rezagos en la carga de actas de soporte."
+                    else:
+                        color_semaforo = "🟢 CUMPLIMIENTO ÓPTIMO"
+                        help_msg = "Ritmo de ejecución alineado con las metas del departamento."
 
-            if not df_p_ult.empty:
-                # Unión de tablas para obtener nombres de municipio y actividad
-                df_merge_ult = df_p_ult.merge(df_a_ult, on="id_asig").merge(df_s_ult, on="id_sub")
-                df_final_ult = df_merge_ult[['fecha_registro', 'municipio', 'nombre_subactividad', 'estado']].tail(5)
-                st.table(df_final_ult)            
+                    # Renderizado Profesional de KPIs en Tarjetas
+                    kpi_m1, kpi_m2, kpi_m3, kpi_m4 = st.columns(4)
+                    kpi_m1.metric("Presupuesto Asignado", f"${muni_total_asig:,.2f}")
+                    kpi_m2.metric("Total Ejecutado (OK)", f"${muni_total_ejec:,.2f}", delta=f"{muni_porc_global:.1f}%")
+                    kpi_m3.metric("Saldo Líquido", f"${muni_saldo_pendiente:,.2f}")
+                    kpi_m4.metric("Estatus del Municipio", color_semaforo, help=help_msg)
+                    
+                    st.markdown("---")
+                    
+                    col_m_izq, col_m_der = st.columns(2)
+                    
+                    with col_m_izq:
+                        st.write("#### 🚦 Semáforo de Eficiencia Presupuestal por Subactividad")
+                        # Dataframe enfocado en el porcentaje de avance individual
+                        df_semaforo_local = df_muni_data[['nombre_subactividad', 'valor_asignado', 'total_ejecutado_financiero']].copy()
+                        df_semaforo_local['% Avance'] = (df_semaforo_local['total_ejecutado_financiero'] / df_semaforo_local['valor_asignado'].replace(0,1)) * 100
+                        
+                        df_semaforo_local['Estado'] = df_semaforo_local['% Avance'].apply(
+                            lambda x: '🔴 Rezago Crítico' if x < 33.3 else ('🟡 En Alerta' if x < 66.6 else '🟢 Al día')
+                        )
+                        df_semaforo_local.columns = ['Subactividad', 'Asignado', 'Ejecutado', '% Eficiencia', 'Semáforo']
+                        st.dataframe(df_semaforo_local.sort_values(by='% Eficiencia'), use_container_width=True, hide_index=True)
+                        
+                    with col_m_der:
+                        st.write("#### 🎯 Alerta de Rezago: Actividades con Mayor Brecha Presupuestal")
+                        df_muni_data['brecha_financiera'] = df_muni_data['valor_asignado'] - df_muni_data['total_ejecutado_financiero']
+                        df_rezagadas = df_muni_data.sort_values(by='brecha_financiera', ascending=False).head(5)
+                        
+                        if df_rezagadas['brecha_financiera'].sum() > 0:
+                            st.bar_chart(data=df_rezagadas, x='nombre_subactividad', y='brecha_financiera', color="#EF4444")
+                        else:
+                            st.success("🎉 ¡Excelente! El municipio ha ejecutado el 100% de los recursos disponibles.")
 
+                    # Comparación del Porcentaje Físico vs Financiero
+                    st.write("#### 📈 Balance de Ejecución: Financiero vs. Avance de Metas Físicas")
+                    df_muni_data['% Eficiencia Financiera'] = (df_muni_data['total_ejecutado_financiero'] / df_muni_data['valor_asignado'].replace(0,1)) * 100
+                    df_muni_data['% Avance Metas Físicas'] = (df_muni_data['total_ejecutado_fisico'] / df_muni_data['meta_municipal'].replace(0,1)) * 100
+                    
+                    df_balance_muni = df_muni_data[['nombre_subactividad', '% Eficiencia Financiera', '% Avance Metas Físicas']].copy()
+                    st.line_chart(df_balance_muni.set_index('nombre_subactividad'))
+
+            # =============================================================
+            # PERFILES: PARAMETRIZADOR, REFERENTE Y SUPERVISOR (ALTA GERENCIA)
+            # =============================================================
+            else:
+                # Creación de Pestañas Macro solicitadas para separar el análisis del Departamento y del Municipio
+                tab_departamento, tab_municipios_analitica = st.tabs([
+                    "🏢 Macrodashboard: Análisis Departamental", 
+                    "📍 Analítica Desagregada por Municipio"
+                ])
+                
+                # --- CONTROL DE FILTRO EN LA BARRA LATERAL (USANDO VARIABLES EXISTENTES) ---
+                st.sidebar.markdown("### 🎛️ Filtros Estructurales")
+                
+                # Extraer dinámicamente los números de cuota/pagos existentes en la base de datos de pagos
+                if not df_pagos_raw.empty:
+                    lista_pagos = ["TODOS"] + sorted(df_pagos_raw['num_pago_actual'].dropna().unique().astype(int).tolist())
+                else:
+                    lista_pagos = ["TODOS", 1, 2, 3]
+                
+                filtro_fase_pago = st.sidebar.selectbox("Fase de Seguimiento (Número de Pago)", lista_pagos)
+                
+                # Aplicar filtrado analítico por el número de cuota seleccionada si aplica
+                if filtro_fase_pago != "TODOS" and not df_pagos_raw.empty:
+                    df_pagos_filtrados = df_pagos_raw[
+                        (df_pagos_raw['estado'].isin(['ACEPTADA', 'REVISADO_REFERENTE'])) & 
+                        (df_pagos_raw['num_pago_actual'].astype(int) == int(filtro_fase_pago))
+                    ].copy()
+                    
+                    df_p_agg_f = df_pagos_filtrados.groupby('id_asig').agg({
+                        'valor_calculado': 'sum', 'avance_meta': 'sum'
+                    }).reset_index()
+                    df_p_agg_f.columns = ['id_asig', 'total_ejecutado_financiero', 'total_ejecutado_fisico']
+                    
+                    # Re-ensamblar la sábana maestra filtrada por la fase del desembolso
+                    df_master_f = df_asig_raw.merge(df_sub_raw, on="id_sub", suffixes=('_muni', '_sub'))
+                    if not df_act_raw.empty:
+                        df_master_f = df_master_f.merge(df_act_raw[['id_actividad', 'nombre_actividad', 'programa_responsable']], on="id_actividad", how="left")
+                    df_master_f = df_master_f.merge(df_p_agg_f, on="id_asig", how="left")
+                    df_master_f['total_ejecutado_financiero'] = df_master_f['total_ejecutado_financiero'].fillna(0.0)
+                    df_master_f['total_ejecutado_fisico'] = df_master_f['total_ejecutado_fisico'].fillna(0.0)
+                else:
+                    df_master_f = df_master.copy()
+
+                # Forzar recálculo de porcentajes sobre la matriz final filtrada
+                df_master_f['valor_asignado'] = df_master_f['valor_asignado'].astype(float)
+                df_master_f['total_ejecutado_financiero'] = df_master_f['total_ejecutado_financiero'].astype(float)
+
+                # =============================================================
+                # PESTAÑA 1: CÁLCULOS MACRO DEPARTAMENTALES
+                # =============================================================
+                with tab_departamento:
+                    st.subheader("🌐 Visión de Control Fiscal y Operativo de Santander")
+                    
+                    dep_total_pic = df_act_raw['valor_total_actividad'].sum() if not df_act_raw.empty else 0
+                    dep_total_asig = df_master_f['valor_asignado'].sum()
+                    dep_total_ejec = df_master_f['total_ejecutado_financiero'].sum()
+                    dep_saldo_bolsa = dep_total_pic - dep_total_asig
+                    
+                    c_dep1, c_dep2, c_dep3, c_dep4 = st.columns(4)
+                    c_dep1.metric("Techo Total PIC", f"${dep_total_pic:,.0f}")
+                    c_dep2.metric("Total Asignado Municipios", f"${dep_total_asig:,.0f}")
+                    c_dep3.metric("Ejecución Financiera Real", f"${dep_total_ejec:,.0f}", delta=f"{(dep_total_ejec/dep_total_asig*100) if dep_total_asig > 0 else 0:.1f}% Eficiencia")
+                    c_dep4.metric("Saldo PIC Sin Asignar", f"${dep_saldo_bolsa:,.0f}")
+                    
+                    st.markdown("---")
+                    
+                    col_dep_izq, col_dep_der = st.columns(2)
+                    
+                    with col_dep_izq:
+                        st.write("#### 📉 Los 10 Municipios Más Rezagados en la Ejecución")
+                        # Agrupación por municipio para medir su rendimiento porcentual
+                        df_muni_perf = df_master_f.groupby('municipio').agg({
+                            'valor_asignado': 'sum',
+                            'total_ejecutado_financiero': 'sum'
+                        }).reset_index()
+                        df_muni_perf['% Ejecución'] = (df_muni_perf['total_ejecutado_financiero'] / df_muni_perf['valor_asignado'].replace(0,1)) * 100
+                        
+                        # Ordenar de menor a mayor porcentaje para mostrar los municipios que van más "quedados"
+                        df_muni_rezagados = df_muni_perf.sort_values(by='% Ejecución', ascending=True).head(10)
+                        
+                        st.bar_chart(data=df_muni_rezagados, x='municipio', y='% Ejecución', color="#EF4444")
+                        st.caption("⚠️ Alerta Gerencial: Municipios ordenados de menor a mayor porcentaje de avance presupuestal.")
+
+                    with col_dep_der:
+                        st.write("#### 📋 Matriz de Semáforos Territoriales")
+                        df_muni_perf['Semáforo'] = df_muni_perf['% Ejecución'].apply(
+                            lambda x: "🔴 Crítico (<33.3%)" if x < 33.3 else ("🟡 Alerta (33%-66%)" if x < 66.6 else "🟢 Óptimo")
+                        )
+                        df_grid_alertas = df_muni_perf[['municipio', 'valor_asignado', '% Ejecución', 'Semáforo']].copy()
+                        df_grid_alertas.columns = ['Municipio', 'Total Asignado', '% Eficiencia', 'Estatus Contractual']
+                        st.dataframe(df_grid_alertas.sort_values(by='% Eficiencia'), use_container_width=True, hide_index=True)
+
+                    st.markdown("---")
+                    st.write("#### 🩺 Ejecución Presupuestal por Programa de Salud Pública")
+                    if 'programa_responsable' in df_master_f.columns:
+                        df_prog_analysis = df_master_f.groupby('programa_responsable').agg({
+                            'valor_asignado': 'sum',
+                            'total_ejecutado_financiero': 'sum'
+                        }).reset_index()
+                        df_prog_analysis['% Avance'] = (df_prog_analysis['total_ejecutado_financiero'] / df_prog_analysis['valor_asignado'].replace(0,1)) * 100
+                        st.dataframe(df_prog_analysis.sort_values(by='% Avance'), use_container_width=True, hide_index=True)
+
+                # =============================================================
+                # PESTAÑA 2: ANÁLISIS ESPECÍFICO DESAGREGADO POR MUNICIPIO
+                # =============================================================
+                with tab_municipios_analitica:
+                    st.subheader("🔎 Filtro de Precisión: Auditoría y Desglose Territorial")
+                    
+                    lista_muni_selector = sorted(df_master_f['municipio'].unique().tolist())
+                    sel_muni_analisis = st.selectbox("Seleccione el Municipio a Fiscalizar:", lista_muni_selector, key="sb_muni_analitica")
+                    
+                    df_muni_especifico = df_master_f[df_master_f['municipio'] == sel_muni_analisis].copy()
+                    
+                    if df_muni_especifico.empty:
+                        st.info("No se registran datos indexados para el municipio seleccionado.")
+                    else:
+                        m_asig = df_muni_especifico['valor_asignado'].sum()
+                        m_ejec = df_muni_especifico['total_ejecutado_financiero'].sum()
+                        m_porc = (m_ejec / m_asig * 100) if m_asig > 0 else 0
+                        
+                        col_an1, col_an2, col_an3 = st.columns(3)
+                        col_an1.metric(f"Monto Asignado", f"${m_asig:,.2f}")
+                        col_an2.metric("Monto Ejecutado Aceptado", f"${m_ejec:,.2f}")
+                        col_an3.metric("Porcentaje de Eficiencia", f"{m_porc:.2f}%")
+                        
+                        st.markdown("#### Desglose Técnico de Metas en el Municipio")
+                        
+                        # Calcular brecha real en pesos para identificar la actividad más rezagada
+                        df_muni_especifico['Brecha Financiera ($)'] = df_muni_especifico['valor_asignado'] - df_muni_especifico['total_ejecutado_financiero']
+                        df_muni_especifico['% Avance'] = (df_muni_especifico['total_ejecutado_financiero'] / df_muni_especifico['valor_asignado'].replace(0,1)) * 100
+                        
+                        df_tabla_muni_det = df_muni_especifico[[
+                            'nombre_subactividad', 'meta_municipal', 'total_ejecutado_fisico', 
+                            'valor_asignado', 'total_ejecutado_financiero', 'Brecha Financiera ($)', '% Avance'
+                        ]].copy()
+                        
+                        df_tabla_muni_det.columns = [
+                            'Subactividad', 'Meta Programada', 'Avance Físico', 
+                            'Presupuesto Asignado', 'Presupuesto Ejecutado', 'Brecha Económica', '% Eficiencia'
+                        ]
+                        
+                        st.dataframe(df_tabla_muni_det.sort_values(by='% Eficiencia'), use_container_width=True, hide_index=True)
+                        
+                        # Extraer e inyectar el nombre de la subactividad que registra el mayor rezago presupuestal en el territorio
+                        actividad_mas_critica = df_muni_especifico.sort_values(by='Brecha Financiera ($)', ascending=False).iloc[0]['nombre_subactividad']
+                        st.error(f"⚠️ **Estrategia en Salud Pública:** En el municipio de **{sel_muni_analisis}**, la subactividad con mayor rezago presupuestal es **{actividad_mas_critica}**. Se aconseja agilizar las mesas de auditoría técnica.")
 
 
             
