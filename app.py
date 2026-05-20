@@ -3,6 +3,8 @@
 #En la vesión 5.5 Se incluye y mejora el análisis del dasboard
 #En la versión 5.6 se incluye mejorar la visual de los valores del dasboard
 # En la versión 5.7 se incluye mejor vsualización del dasboard del municipio
+# En la versión 5.8 se incluye mejorar el informe de Word
+
 
 import streamlit as st
 import pandas as pd
@@ -1090,9 +1092,22 @@ else:
                         acta_link = st.text_input("Enlace al Acta de Conformidad (PDF)")
                         if st.form_submit_button("Dar OK y enviar a Supervisor"):
                             df_rev = get_data("seguimiento_pagos")
+                            
+                            # --- SOLUCIÓN AL TYPEERROR: Conversión explícita a texto ---
+                            columnas_texto = ['estado', 'acta_referente', 'referente_aprobador']
+                            for col in columnas_texto:
+                                if col in df_rev.columns:
+                                    df_rev[col] = df_rev[col].astype(str).replace(['nan', 'None', '<NA>'], '')
+                                else:
+                                    df_rev[col] = ''
+                            
+                            # --- Asignación segura de los nuevos valores ---
                             df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'estado'] = 'REVISADO_REFERENTE'
                             df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'acta_referente'] = str(acta_link)
                             df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'referente_aprobador'] = str(st.session_state['user'])
+
+
+
                             safe_update("seguimiento_pagos", df_rev)
                             st.success("✅ Validación registrada en Excel y enviada a Supervisor.")
                             st.rerun()
