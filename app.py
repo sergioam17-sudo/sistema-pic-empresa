@@ -1,6 +1,7 @@
 #En la Versión 5.3 se incluye generación del documento en Word
 #En la versión 5.4 se incluy las columnas de nombre del referente y el supervisor que aprueba
 #En la vesión 5.5 Se incluye y mejora el análisis del dasboard
+#En la versión 5.6 se incluye mejorar la visual de los valores del dasboard
 
 import streamlit as st
 import pandas as pd
@@ -315,9 +316,27 @@ else:
                         df_rezagadas = df_muni_data.sort_values(by='brecha_financiera', ascending=False).head(5)
                         
                         if df_rezagadas['brecha_financiera'].sum() > 0:
-                            st.bar_chart(data=df_rezagadas, x='nombre_subactividad', y='brecha_financiera', color="#EF4444")
+                            import plotly.express as px
+                            
+                            # Gráfico de barras horizontal: nombres completos legibles a la izquierda sin cortes '...'
+                            fig_rezago_muni = px.bar(
+                                df_rezagadas,
+                                x='brecha_financiera',
+                                y='nombre_subactividad',
+                                orientation='h',
+                                title="Top Subactividades con Mayor Brecha",
+                                labels={'brecha_financiera': 'Brecha ($)', 'nombre_subactividad': 'Subactividad'},
+                                hover_data={'nombre_subactividad': True, 'brecha_financiera': ':$,.2f'}
+                            )
+                            fig_rezago_muni.update_layout(
+                                yaxis={'categoryorder': 'total ascending'}, 
+                                margin=dict(l=150, r=20, t=40, b=40),
+                                height=350
+                            )
+                            st.plotly_chart(fig_rezago_muni, use_container_width=True)
                         else:
                             st.success("🎉 ¡Excelente! El municipio ha ejecutado el 100% de los recursos disponibles.")
+
 
                     # Comparación del Porcentaje Físico vs Financiero
                     st.write("#### 📈 Balance de Ejecución: Financiero vs. Avance de Metas Físicas")
@@ -325,7 +344,27 @@ else:
                     df_muni_data['% Avance Metas Físicas'] = (df_muni_data['total_ejecutado_fisico'] / df_muni_data['meta_municipal'].replace(0,1)) * 100
                     
                     df_balance_muni = df_muni_data[['nombre_subactividad', '% Eficiencia Financiera', '% Avance Metas Físicas']].copy()
-                    st.line_chart(df_balance_muni.set_index('nombre_subactividad'))
+                    
+                    import plotly.express as px
+                    df_melted = df_balance_muni.melt(
+                        id_vars=['nombre_subactividad'], 
+                        value_vars=['% Eficiencia Financiera', '% Avance Metas Físicas'],
+                        var_name='Métrica', 
+                        value_name='Porcentaje'
+                    )
+                    
+                    fig_line_muni = px.line(
+                        df_melted,
+                        x='nombre_subactividad',
+                        y='Porcentaje',
+                        color='Métrica',
+                        markers=True,
+                        title="Balance de Ejecución: Financiero vs. Físico",
+                        labels={'nombre_subactividad': 'Subactividad', 'Porcentaje': 'Porcentaje (%)'},
+                        hover_data={'nombre_subactividad': True, 'Porcentaje': ':.2f%'}
+                    )
+                    fig_line_muni.update_layout(xaxis_tickangle=-45, margin=dict(l=50, r=20, t=40, b=100))
+                    st.plotly_chart(fig_line_muni, use_container_width=True)
 
             # =============================================================
             # PERFILES: PARAMETRIZADOR, REFERENTE Y SUPERVISOR (ALTA GERENCIA)
@@ -407,7 +446,20 @@ else:
                         # Ordenar de menor a mayor porcentaje para mostrar los municipios que van más "quedados"
                         df_muni_rezagados = df_muni_perf.sort_values(by='% Ejecución', ascending=True).head(10)
                         
-                        st.bar_chart(data=df_muni_rezagados, x='municipio', y='% Ejecución', color="#EF4444")
+                        import plotly.express as px
+                        fig_dep_rezago = px.bar(
+                            df_muni_rezagados,
+                            x='municipio',
+                            y='% Ejecución',
+                            title="Top 10 Municipios Más Rezagados en la Ejecución",
+                            labels={'municipio': 'Municipio', '% Ejecución': 'Porcentaje de Ejecución (%)'},
+                            color_discrete_sequence=["#EF4444"],
+                            text_auto='.1f',  # Muestra el valor exacto encima de cada barra
+                            hover_data={'municipio': True, '% Ejecución': ':.2f%'}
+                        )
+                        fig_dep_rezago.update_layout(margin=dict(l=40, r=20, t=40, b=40))
+                        st.plotly_chart(fig_dep_rezago, use_container_width=True)
+                        
                         st.caption("⚠️ Alerta Gerencial: Municipios ordenados de menor a mayor porcentaje de avance presupuestal.")
 
                     with col_dep_der:
