@@ -390,7 +390,7 @@ else:
                             st.success("🎉 ¡Excelente! El municipio ha ejecutado el 100% de los recursos disponibles.")
 
 
-                    # Comparación del Porcentaje Físico vs Financiero
+                    # Comparación del Porcentaje Físico vs Financiero con Ingeniería de Visualización
                     st.write("#### 📈 Balance de Ejecución: Financiero vs. Avance de Metas Físicas")
                     df_muni_data['% Eficiencia Financiera'] = (df_muni_data['total_ejecutado_financiero'] / df_muni_data['valor_asignado'].replace(0,1)) * 100
                     df_muni_data['% Avance Metas Físicas'] = (df_muni_data['total_ejecutado_fisico'] / df_muni_data['meta_municipal'].replace(0,1)) * 100
@@ -398,25 +398,59 @@ else:
                     df_balance_muni = df_muni_data[['nombre_subactividad', '% Eficiencia Financiera', '% Avance Metas Físicas']].copy()
                     
                     import plotly.express as px
+                    
+                    # 1. Crear etiquetas cortas para el eje X visible y evitar colisiones tipográficas
+                    df_balance_muni['subactividad_corta'] = df_balance_muni['nombre_subactividad'].apply(
+                        lambda x: str(x)[:22] + "..." if len(str(x)) > 25 else str(x)
+                    )
+                    
+                    # 2. Formateador HTML para segmentar el texto del Tooltip flotante en párrafos limpios
+                    def formatear_linea_hover(texto):
+                        texto_str = str(texto)
+                        chunks = [texto_str[i:i+50] for i in range(0, len(texto_str), 50)]
+                        return "<br>".join(chunks)
+                        
+                    df_balance_muni['hover_completo'] = df_balance_muni['nombre_subactividad'].apply(formatear_linea_hover)
+                    
+                    # 3. Pivotar/Melt del DataFrame para que Plotly pinte las dos líneas correctamente con su leyenda
                     df_melted = df_balance_muni.melt(
-                        id_vars=['nombre_subactividad'], 
+                        id_vars=['subactividad_corta', 'hover_completo'], 
                         value_vars=['% Eficiencia Financiera', '% Avance Metas Físicas'],
-                        var_name='Métrica', 
+                        var_name='Dimensión Evaluada', 
                         value_name='Porcentaje'
                     )
                     
+                    # 4. Construcción interactiva del gráfico de líneas
                     fig_line_muni = px.line(
                         df_melted,
-                        x='nombre_subactividad',
+                        x='subactividad_corta',
                         y='Porcentaje',
-                        color='Métrica',
+                        color='Dimensión Evaluada',
                         markers=True,
-                        title="Balance de Ejecución: Financiero vs. Físico",
-                        labels={'nombre_subactividad': 'Subactividad', 'Porcentaje': 'Porcentaje (%)'},
-                        hover_data={'nombre_subactividad': True, 'Porcentaje': ':.2f%'}
+                        title="<b>Análisis de Convergencia: Recursos Devengados vs. Metas Físicas (%)</b>",
+                        labels={'subactividad_corta': 'Subactividades del PIC', 'Porcentaje': 'Porcentaje Realizado (%)'},
+                        hover_data={
+                            'subactividad_corta': False,      # Ocultamos el nombre corto recortado
+                            'hover_completo': True,           # Desplegamos el nombre original estructurado
+                            'Porcentaje': ':.1f%'             # Formato con un solo decimal de precisión
+                        }
                     )
-                    fig_line_muni.update_layout(xaxis_tickangle=-45, margin=dict(l=50, r=20, t=40, b=100))
+                    
+                    # 5. Ajustes estéticos y de inclinación de etiquetas para máxima legibilidad
+                    fig_line_muni.update_layout(
+                        xaxis=dict(tickangle=-35, tickmode='linear'),
+                        margin=dict(l=50, r=30, t=60, b=100),
+                        height=420,
+                        title_font=dict(size=14, family="Arial"),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                        hoverlabel=dict(
+                            bgcolor="#F8F9FA",
+                            font_size=12,
+                            font_family="Arial"
+                        )
+                    )
                     st.plotly_chart(fig_line_muni, use_container_width=True)
+
 
             # =============================================================
             # PERFILES: PARAMETRIZADOR, REFERENTE Y SUPERVISOR (ALTA GERENCIA)
