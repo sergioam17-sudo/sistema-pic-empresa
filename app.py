@@ -2,6 +2,7 @@
 #En la versión 5.4 se incluy las columnas de nombre del referente y el supervisor que aprueba
 #En la vesión 5.5 Se incluye y mejora el análisis del dasboard
 #En la versión 5.6 se incluye mejorar la visual de los valores del dasboard
+# En la versión 5.7 se incluye mejor vsualización del dasboard del municipio
 
 import streamlit as st
 import pandas as pd
@@ -318,7 +319,24 @@ else:
                             lambda x: '🔴 Rezago Crítico' if x < 33.3 else ('🟡 En Alerta' if x < 66.6 else '🟢 Al día')
                         )
                         df_semaforo_local.columns = ['Subactividad', 'Asignado', 'Ejecutado', '% Eficiencia', 'Semáforo']
-                        st.dataframe(df_semaforo_local.sort_values(by='% Eficiencia'), use_container_width=True, hide_index=True)
+                        
+                        # Formatear la visualización para evitar que se corten los textos con puntos suspensivos
+                        st.dataframe(
+                            df_semaforo_local.sort_values(by='% Eficiencia'),
+                            use_container_width=True,
+                            hide_index=True,
+                            column_config={
+                                "Subactividad": st.column_config.TextColumn(
+                                    "Subactividad (Evidencia Técnica)",
+                                    width="large",
+                                    disabled=True
+                                ),
+                                "Asignado": st.column_config.NumberColumn("Asignado", format="$%,.0f"),
+                                "Ejecutado": st.column_config.NumberColumn("Ejecutado", format="$%,.0f"),
+                                "% Eficiencia": st.column_config.NumberColumn("% Efic.", format="%.1f%%")
+                            }
+                        )
+
                         
                     with col_m_der:
                         st.write("#### 🎯 Alerta de Rezago: Actividades con Mayor Brecha Presupuestal")
@@ -326,25 +344,46 @@ else:
                         df_rezagadas = df_muni_data.sort_values(by='brecha_financiera', ascending=False).head(5)
                         
                         if df_rezagadas['brecha_financiera'].sum() > 0:
+
+
                             import plotly.express as px
                             
-                            # Gráfico de barras horizontal: nombres completos legibles a la izquierda sin cortes '...'
+                            # Inteligencia de Datos: Creamos una etiqueta corta para el eje visible sin dañar el texto original
+                            df_rezagadas['subactividad_corta'] = df_rezagadas['nombre_subactividad'].apply(
+                                lambda x: x[:37] + "..." if len(str(x)) > 40 else x
+                            )
+                            
+                            # Construcción del Gráfico Avanzado de Plotly
                             fig_rezago_muni = px.bar(
                                 df_rezagadas,
                                 x='brecha_financiera',
-                                y='nombre_subactividad',
+                                y='subactividad_corta',
                                 orientation='h',
-                                title="Top Subactividades con Mayor Brecha",
-                                labels={'brecha_financiera': 'Brecha ($)', 'nombre_subactividad': 'Subactividad'},
-                                hover_data={'nombre_subactividad': True, 'brecha_financiera': ':$,.2f'}
+                                title="Top Subactividades con Mayor Brecha Financiera",
+                                labels={'brecha_financiera': 'Brecha Pendiente ($)', 'subactividad_corta': 'Subactividad'},
+                                # CRÍTICO: El hover mostrará la variable 'nombre_subactividad' ORIGINAL COMPLETA
+                                hover_data={
+                                    'subactividad_corta': False, # Ocultamos la versión recortada del tooltip
+                                    'nombre_subactividad': True,  # Mostramos el nombre descriptivo completo
+                                    'brecha_financiera': ':$,.2f' # Formato monetario profesional con decimales
+                                }
                             )
+                            
+                            # Optimización del Layout para asegurar simetría visual y espacio suficiente
                             fig_rezago_muni.update_layout(
-                                yaxis={'categoryorder': 'total ascending'}, 
-                                margin=dict(l=150, r=20, t=40, b=40),
-                                height=350
+                                yaxis={
+                                    'categoryorder': 'total ascending',
+                                    'tickmode': 'linear'
+                                },
+                                margin=dict(l=220, r=30, t=50, b=40),
+                                height=380,
+                                hoverlabel=dict(
+                                    bgcolor="white",
+                                    font_size=12,
+                                    font_family="Arial"
+                                )
                             )
-                            st.plotly_chart(fig_rezago_muni, use_container_width=True)
-                        else:
+                            st.plotly_chart(fig_rezago_muni, use_container_width=True)                        else:
                             st.success("🎉 ¡Excelente! El municipio ha ejecutado el 100% de los recursos disponibles.")
 
 
