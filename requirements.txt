@@ -3,3 +3,4 @@ python-docx
 psycopg2-binary
 st-gsheets-connection
 google-auth
+plotly
