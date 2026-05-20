@@ -205,7 +205,7 @@ else:
 
 # --- MÓDULO: DASHBOARD DINÁMICO REINGENIERÍA ANALÍTICA ---
     if menu == "🏠 Dashboard":
-        st.title(f"📊 Business Intelligence Dashboard - PIC Santander")
+        st.title(f"📊 Seguimiento - PIC Santander")
         st.caption(f"Sistema Integrado de Analítica para el Plan de Intervenciones Colectivas")
 
         # -------------------------------------------------------------
@@ -287,12 +287,22 @@ else:
                         color_semaforo = "🟢 CUMPLIMIENTO ÓPTIMO"
                         help_msg = "Ritmo de ejecución alineado con las metas del departamento."
 
-                    # Renderizado Profesional de KPIs en Tarjetas
+                    # Renderizado Flexible de KPIs en Columnas Estables
                     kpi_m1, kpi_m2, kpi_m3, kpi_m4 = st.columns(4)
-                    kpi_m1.metric("Presupuesto Asignado", f"${muni_total_asig:,.2f}")
-                    kpi_m2.metric("Total Ejecutado (OK)", f"${muni_total_ejec:,.2f}", delta=f"{muni_porc_global:.1f}%")
-                    kpi_m3.metric("Saldo Líquido", f"${muni_saldo_pendiente:,.2f}")
-                    kpi_m4.metric("Estatus del Municipio", color_semaforo, help=help_msg)
+                    with kpi_m1:
+                        st.caption("📋 Presupuesto Asignado")
+                        st.markdown(f"### ${muni_total_asig:,.0f}")
+                    with kpi_m2:
+                        st.caption("✅ Total Ejecutado (OK)")
+                        st.markdown(f"### ${muni_total_ejec:,.0f}")
+                        st.caption(f"📈 {muni_porc_global:.1f}% del total")
+                    with kpi_m3:
+                        st.caption("📥 Saldo Líquido")
+                        st.markdown(f"### ${muni_saldo_pendiente:,.0f}")
+                    with kpi_m4:
+                        st.caption("🚨 Estatus del Municipio")
+                        st.markdown(f"#### {color_semaforo}")
+
                     
                     st.markdown("---")
                     
@@ -423,12 +433,23 @@ else:
                     dep_total_asig = df_master_f['valor_asignado'].sum()
                     dep_total_ejec = df_master_f['total_ejecutado_financiero'].sum()
                     dep_saldo_bolsa = dep_total_pic - dep_total_asig
+                    dep_eficiencia = (dep_total_ejec / dep_total_asig * 100) if dep_total_asig > 0 else 0
                     
+                    # Estructura de columnas para evitar el colapso del contenedor nativo st.metric
                     c_dep1, c_dep2, c_dep3, c_dep4 = st.columns(4)
-                    c_dep1.metric("Techo Total PIC", f"${dep_total_pic:,.0f}")
-                    c_dep2.metric("Total Asignado Municipios", f"${dep_total_asig:,.0f}")
-                    c_dep3.metric("Ejecución Financiera Real", f"${dep_total_ejec:,.0f}", delta=f"{(dep_total_ejec/dep_total_asig*100) if dep_total_asig > 0 else 0:.1f}% Eficiencia")
-                    c_dep4.metric("Saldo PIC Sin Asignar", f"${dep_saldo_bolsa:,.0f}")
+                    with c_dep1:
+                        st.caption("📋 Techo Total PIC")
+                        st.markdown(f"### ${dep_total_pic:,.0f}")
+                    with c_dep2:
+                        st.caption("📍 Total Asignado Municipios")
+                        st.markdown(f"### ${dep_total_asig:,.0f}")
+                    with c_dep3:
+                        st.caption("💰 Ejecución Financiera Real")
+                        st.markdown(f"### ${dep_total_ejec:,.0f}")
+                        st.caption(f"📈 {dep_eficiencia:.1f}% Eficiencia")
+                    with c_dep4:
+                        st.caption("💼 Saldo PIC Sin Asignar")
+                        st.markdown(f"### ${dep_saldo_bolsa:,.0f}")
                     
                     st.markdown("---")
                     
@@ -500,9 +521,15 @@ else:
                         m_porc = (m_ejec / m_asig * 100) if m_asig > 0 else 0
                         
                         col_an1, col_an2, col_an3 = st.columns(3)
-                        col_an1.metric(f"Monto Asignado", f"${m_asig:,.2f}")
-                        col_an2.metric("Monto Ejecutado Aceptado", f"${m_ejec:,.2f}")
-                        col_an3.metric("Porcentaje de Eficiencia", f"{m_porc:.2f}%")
+                        with col_an1:
+                            st.caption("📌 Monto Asignado")
+                            st.markdown(f"### ${m_asig:,.0f}")
+                        with col_an2:
+                            st.caption("💵 Monto Ejecutado Aceptado")
+                            st.markdown(f"### ${m_ejec:,.0f}")
+                        with col_an3:
+                            st.caption("📊 Porcentaje de Eficiencia")
+                            st.markdown(f"### {m_porc:.2f}%")
                         
                         st.markdown("#### Desglose Técnico de Metas en el Municipio")
                         
