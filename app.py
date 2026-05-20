@@ -383,7 +383,10 @@ else:
                                     font_family="Arial"
                                 )
                             )
-                            st.plotly_chart(fig_rezago_muni, use_container_width=True)                        else:
+                            st.plotly_chart(fig_rezago_muni, use_container_width=True)
+
+
+                        else:
                             st.success("🎉 ¡Excelente! El municipio ha ejecutado el 100% de los recursos disponibles.")
 
 
