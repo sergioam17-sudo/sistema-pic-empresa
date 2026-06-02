@@ -188,7 +188,16 @@ if 'user' not in st.session_state:
 else:
     rol = st.session_state['rol']
     st.sidebar.info(f"**Usuario:** {st.session_state['user']}\n\n**Rol:** {rol}")
+    
+    # 🚀 CONTROL GLOBAL DE DATOS: Carga unificada para evitar NameError en cualquier módulo
+    df_act_raw = get_data("actividades_maestro")
+    df_sub_raw = get_data("subactividades")
+    df_asig_raw = get_data("asignacion_municipios")
+    df_pagos_raw = get_data("seguimiento_pagos")
+    
     opciones = ["🏠 Dashboard", "📝 Ejecución"]
+
+
     if rol == "DEPARTAMENTO_PARAMETRIZADOR":
         opciones += ["⚙️ Parametrización", "⚖️ Revisión", "👤 Gestión Usuarios"]
     elif rol == "REFERENTE_DEPARTAMENTAL":
@@ -212,16 +221,11 @@ else:
         st.title(f"📊 Seguimiento - PIC Santander")
         st.caption(f"Sistema Integrado de Analítica para el Plan de Intervenciones Colectivas")
 
-        # -------------------------------------------------------------
-        # 1. CARGA Y PREPARACIÓN DE MATRICES DE DATOS (CONSOLIDACIÓN PANDAS)
-        # -------------------------------------------------------------
-        df_act_raw = get_data("actividades_maestro")
-        df_sub_raw = get_data("subactividades")
-        df_asig_raw = get_data("asignacion_municipios")
-        df_pagos_raw = get_data("seguimiento_pagos")
-
+        
         # Validación estructural de seguridad para evitar caídas de la app
         if df_asig_raw.empty or df_sub_raw.empty:
+
+
             st.info("ℹ️ Esperando la parametrización de actividades y asignaciones municipales para proyectar métricas.")
         else:
             # Unión estructural: Asignación Municipio + Subactividad base
