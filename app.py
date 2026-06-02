@@ -1465,7 +1465,7 @@ else:
         df_a_glob = get_data("asignacion_municipios")
         df_s_glob = get_data("subactividades")
         
-        if not df_p_glob.empty and not df_a_glob.empty and not df_s_glob.empty and not df_m_muni.empty:
+        if not df_p_glob.empty and not df_a_glob.empty and not df_s_glob.empty and not df_act_raw.empty:
             # Homologación defensiva del nombre de la variable monetaria
             df_p_copy = df_p_glob.copy()
             if 'valor_calculated' in df_p_copy.columns and 'valor_calculado' not in df_p_copy.columns:
@@ -1474,7 +1474,8 @@ else:
             # Re-ensamble matricial completo usando "left joins" para proteger la integridad de filas
             df_global = df_p_copy.merge(df_a_glob, on="id_asig", how="left")
             df_global = df_global.merge(df_s_glob, on="id_sub", how="left")
-            df_global = df_global.merge(df_m_muni, on="id_actividad", how="left")
+            df_global = df_global.merge(df_act_raw, on="id_actividad", how="left")
+
             
             # Reorganización explícita de columnas inyectando los datos de la Actividad Padre
             cols_verificar = [
