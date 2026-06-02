@@ -1060,17 +1060,23 @@ else:
         df_p_muni = get_data("seguimiento_pagos")
         df_a_muni = get_data("asignacion_municipios")
         df_s_muni = get_data("subactividades")
+        df_m_muni = get_data("actividades_maestro")  # <-- SOLUCIÓN: Carga de la variable faltante
         
-        if not df_p_muni.empty:
+        if not df_p_muni.empty and not df_a_muni.empty and not df_s_muni.empty and not df_m_muni.empty:
+
             # Asegurar que existan las columnas base en pagos antes del merge
             columnas_requeridas = ['id_seguimiento', 'id_asig', 'num_pago_actual', 'valor_calculado', 'avance_meta', 'estado']
             for col in columnas_requeridas:
                 if col not in df_p_muni.columns:
                     df_p_muni[col] = "N/A"
 
-            # Ensamble de traza completa uniendo hasta la Actividad Maestro
-            df_merge_muni = df_p_muni.merge(df_a_muni, on="id_asig").merge(df_s_muni, on="id_sub").merge(df_m_muni, on="id_actividad")
+            # Ensamble de traza completa uniendo hasta la Actividad Maestro con Left Join preventivo
+            df_merge_muni = df_p_muni.merge(df_a_muni, on="id_asig", how="left")
+            df_merge_muni = df_merge_muni.merge(df_s_muni, on="id_sub", how="left")
+            df_merge_muni = df_merge_muni.merge(df_m_muni, on="id_actividad", how="left")
+            
             df_seguimiento_muni = df_merge_muni[df_merge_muni['municipio'] == muni_actual]
+
             
             # Inyección de las columnas id_actividad y nombre_actividad
             cols_finales = ['id_seguimiento', 'id_actividad', 'nombre_actividad', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'avance_meta', 'estado']
