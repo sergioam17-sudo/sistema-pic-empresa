@@ -1465,30 +1465,50 @@ else:
         df_a_glob = get_data("asignacion_municipios")
         df_s_glob = get_data("subactividades")
         
-        if not df_p_glob.empty:
-            # Unimos de forma segura las colecciones de datos
-            df_global = df_p_glob.merge(df_a_glob, on="id_asig").merge(df_s_glob, on="id_sub")
+        if not df_p_glob.empty and not df_a_glob.empty and not df_s_glob.empty and not df_m_muni.empty:
+            # Homologación defensiva del nombre de la variable monetaria
+            df_p_copy = df_p_glob.copy()
+            if 'valor_calculated' in df_p_copy.columns and 'valor_calculado' not in df_p_copy.columns:
+                df_p_copy.rename(columns={'valor_calculated': 'valor_calculado'}, inplace=True)
+
+            # Re-ensamble matricial completo usando "left joins" para proteger la integridad de filas
+            df_global = df_p_copy.merge(df_a_glob, on="id_asig", how="left")
+            df_global = df_global.merge(df_s_glob, on="id_sub", how="left")
+            df_global = df_global.merge(df_m_muni, on="id_actividad", how="left")
             
-            # Forzar validación defensiva de columnas para evitar fallos de renderizado
-            cols_verificar = ['id_seguimiento', 'municipio', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'referente_aprobador', 'acta_referente', 'supervisor_aprobador', 'estado', 'motivo_rechazo']
+            # Reorganización explícita de columnas inyectando los datos de la Actividad Padre
+            cols_verificar = [
+                'id_seguimiento', 'municipio', 'id_actividad', 'nombre_actividad', 
+                'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 
+                'referente_aprobador', 'acta_referente', 'supervisor_aprobador', 'estado', 'motivo_rechazo'
+            ]
+            
             for col in cols_verificar:
                 if col not in df_global.columns:
                     df_global[col] = None
 
-            # Campos requeridos para la visualización oficial en pantalla
-            cols_deseadas = ['id_seguimiento', 'municipio', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'referente_aprobador', 'acta_referente', 'supervisor_aprobador', 'estado', 'motivo_rechazo']
-            df_global = df_global[cols_deseadas].copy()
+            # Filtrar el DataFrame final con el orden estricto establecido
+            df_global = df_global[cols_verificar].copy()
             
-            # Tratamiento de vacíos (NaN)
+            # Tratamiento y limpieza de registros vacíos
+            df_global['id_actividad'] = df_global['id_actividad'].fillna("N/A")
+            df_global['nombre_actividad'] = df_global['nombre_actividad'].fillna("Sin Actividad Padre")
             df_global['referente_aprobador'] = df_global['referente_aprobador'].fillna("Pendiente Aval")
-            df_global['acta_referente'] = df_global['acta_referente'].fillna("Sin Acta cargada")
+            df_global['acta_referente'] = df_global['acta_referente'].fillna("Sin Acta")
             df_global['supervisor_aprobador'] = df_global['supervisor_aprobador'].fillna("Pendiente Firma")
             df_global['motivo_rechazo'] = df_global['motivo_rechazo'].fillna("Sin observaciones")
+            df_global['estado'] = df_global['estado'].fillna("PENDIENTE")
             
-            df_global.columns = ['ID', 'Municipio', 'Actividad', 'Pago N°', 'Valor', 'Referente que Avaló', 'Acta Referente', 'Supervisor que Aprobó', 'Estado', 'Observaciones / Motivo de Rechazo']
+            # Asignación final de encabezados profesionales e independientes para Streamlit
+            df_global.columns = [
+                'ID Seguimiento', 'Municipio', 'ID Actividad', 'Actividad', 
+                'Sub Actividad', 'Pago N°', 'Valor Proporcional', 'Referente que Avaló', 
+                'Acta Referente', 'Supervisor que Aprobó', 'Estado', 'Observaciones / Motivo de Rechazo'
+            ]
             
-            # Formatear columna monetaria para presentación gerencial
-            df_global['Valor'] = df_global['Valor'].map(lambda x: f"${x:,.2f}" if isinstance(x, (int, float)) else x)
+            # Formateador de moneda dinámico y seguro
+            df_global['Valor Proporcional'] = pd.to_numeric(df_global['Valor Proporcional'], errors='coerce').fillna(0)
+            df_global['Valor Proporcional'] = df_global['Valor Proporcional'].map(lambda x: f"${x:,.2f}")
         else:
             df_global = pd.DataFrame()
 
