@@ -4,6 +4,7 @@
 #En la versión 5.6 se incluye mejorar la visual de los valores del dasboard
 # En la versión 5.7 se incluye mejor vsualización del dasboard del municipio
 # En la versión 5.8 se incluye mejorar el informe de Word
+# En la versión 5.9 se incluye el colocar en todas las tablas de trazabilidad y seguimiento las columnas de id_actividad y # nombre de la actividad
 
 
 import streamlit as st
@@ -615,16 +616,20 @@ else:
                         df_muni_especifico['Brecha Financiera ($)'] = df_muni_especifico['valor_asignado'] - df_muni_especifico['total_ejecutado_financiero']
                         df_muni_especifico['% Avance'] = (df_muni_especifico['total_ejecutado_financiero'] / df_muni_especifico['valor_asignado'].replace(0,1)) * 100
                         
+
                         df_tabla_muni_det = df_muni_especifico[[
-                            'nombre_subactividad', 'meta_municipal', 'total_ejecutado_fisico', 
+                            'id_actividad', 'nombre_actividad', 'nombre_subactividad', 
+                            'meta_municipal', 'total_ejecutado_fisico', 
                             'valor_asignado', 'total_ejecutado_financiero', 'Brecha Financiera ($)', '% Avance'
                         ]].copy()
                         
                         df_tabla_muni_det.columns = [
-                            'Subactividad', 'Meta Programada', 'Avance Físico', 
+                            'ID Actividad', 'Actividad Maestro', 'Subactividad', 'Meta Programada', 'Avance Físico', 
                             'Presupuesto Asignado', 'Presupuesto Ejecutado', 'Brecha Económica', '% Eficiencia'
                         ]
                         
+
+
                         st.dataframe(df_tabla_muni_det.sort_values(by='% Eficiencia'), use_container_width=True, hide_index=True)
                         
                         # Extraer e inyectar el nombre de la subactividad que registra el mayor rezago presupuestal en el territorio
@@ -950,8 +955,29 @@ else:
             if df_mis_asig.empty:
                 st.info(f"No hay asignaciones pendientes para {muni_user}.")
             else:
-                sel_asig = st.selectbox("Seleccione Actividad/Contrato a reportar:", df_mis_asig['id_asig'].tolist(), 
-                                       format_func=lambda x: f"Contrato: {df_mis_asig[df_mis_asig['id_asig']==x]['num_contrato'].values[0]} - {df_mis_asig[df_mis_asig['id_asig']==x]['nombre_subactividad'].values[0]}")
+                st.markdown("### 🔍 Selector de Metas Contractuales")
+                
+                # Filtro 1: Extraer y formatear las Actividades Maestro asignadas a este municipio
+                actividades_disponibles = df_mis_asig[['id_actividad', 'nombre_actividad']].drop_duplicates()
+                dict_actividades = {row['id_actividad']: f"ID {row['id_actividad']} - {row['nombre_actividad']}" for _, row in actividades_disponibles.iterrows()}
+                
+                sel_actividad_padre = st.selectbox(
+                    "1️⃣ Filtrar por Actividad General (Maestro):", 
+                    options=list(dict_actividades.keys()), 
+                    format_func=lambda x: dict_actividades[x],
+                    key="filtro_cascada_actividad"
+                )
+                
+                # Filtro 2: Filtrar subactividades hijas en base a la selección del padre
+                df_subs_filtradas = df_mis_asig[df_mis_asig['id_actividad'] == sel_actividad_padre]
+                dict_subactividades = {row['id_asig']: f"Contrato: {row['num_contrato']} >> {row['nombre_subactividad']}" for _, row in df_subs_filtradas.iterrows()}
+                
+                sel_asig = st.selectbox(
+                    "2️⃣ Seleccione Subactividad / Contrato Específico a Reportar:", 
+                    options=list(dict_subactividades.keys()), 
+                    format_func=lambda x: dict_subactividades[x],
+                    key="filtro_cascada_subactividad"
+                )
                 
                 datos = df_mis_asig[df_mis_asig['id_asig'] == sel_asig].iloc[0]
                 
@@ -1042,16 +1068,26 @@ else:
                 if col not in df_p_muni.columns:
                     df_p_muni[col] = "N/A"
 
-            df_merge_muni = df_p_muni.merge(df_a_muni, on="id_asig").merge(df_s_muni, on="id_sub")
+            # Ensamble de traza completa uniendo hasta la Actividad Maestro
+            df_merge_muni = df_p_muni.merge(df_a_muni, on="id_asig").merge(df_s_muni, on="id_sub").merge(df_m_muni, on="id_actividad")
             df_seguimiento_muni = df_merge_muni[df_merge_muni['municipio'] == muni_actual]
             
-            # Lista de columnas finales para mostrar (verificando existencia)
-            cols_finales = ['id_seguimiento', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'avance_meta', 'estado']
+            # Inyección de las columnas id_actividad y nombre_actividad
+            cols_finales = ['id_seguimiento', 'id_actividad', 'nombre_actividad', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'avance_meta', 'estado']
             if 'acta_referente' in df_seguimiento_muni.columns:
                 cols_finales.append('acta_referente')
                 
-            # Seleccionar solo las que realmente existan para evitar el KeyError
-            df_seguimiento_muni = df_seguimiento_muni[[c for c in cols_finales if c in df_seguimiento_muni.columns]]
+            df_seguimiento_muni = df_seguimiento_muni[[c for c in cols_finales if c in df_seguimiento_muni.columns]].copy()
+            
+            # Sobreescribir nombres de columnas para presentación profesional
+            df_seguimiento_muni.columns = [
+                'ID Seguimiento', 'ID Actividad', 'Actividad General', 'Subactividad', 
+                'Pago N°', 'Valor Calculado', 'Avance Meta', 'Estado'
+            ] + (['Acta Soporte'] if 'acta_referente' in df_seguimiento_muni.columns else [])
+
+
+
+
         else:
             df_seguimiento_muni = pd.DataFrame()
 
