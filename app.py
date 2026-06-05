@@ -9,6 +9,7 @@
 # En la Versión 6.1 se incluye la columna de observaciones para el supervisor y e referente
 # En la versión 6.2 se incluye el seguimiento administrativo del contrato que solo se hace solo por el supervisor del contrato
 # En la versión 6.3 se incluye opción de rechazo por parte del referente al igual que el supervisor para que el municipio sudsane la novedad
+# En la versión 6.4 se incluye tabla de secuencia para verificar los pagos realizados
 
 import streamlit as st
 import pandas as pd
@@ -30,7 +31,8 @@ def init_excel_db():
         "actividades_maestro": ["id_actividad", "nombre_actividad", "descripcion", "meta_global", "unidad_medida", "valor_total_actividad", "programa_responsable"],
         "subactividades": ["id_sub", "id_actividad", "nombre_subactividad", "valor_sub", "meta_sub", "unidad_medida_sub", "peso"],
         "asignacion_municipios": ["id_asig", "id_sub", "municipio", "num_contrato", "num_pagos", "valor_asignado", "meta_municipal", "unidad_medida_muni"],
-        "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "soporte_url", "estado", "referente_aprobador", "acta_referente", "observaciones_referente", "supervisor_aprobador", "motivo_rechazo", "chk_plan_trabajo", "chk_cronograma", "chk_personal", "chk_seg_social", "chk_inf_parcial", "chk_inf_final", "chk_polizas"]
+        "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "soporte_url", "estado", "referente_aprobador", "acta_referente", "observaciones_referente", "supervisor_aprobador", "motivo_rechazo", "chk_plan_trabajo", "chk_cronograma", "chk_personal", "chk_seg_social", "chk_inf_parcial", "chk_inf_final", "chk_polizas"],
+        "secuencia": ["id_secuencia", "id_seguimiento", "id_asig", "municipio", "num_pago_actual", "estado_hito", "fecha_hito", "operador_responsable"]
     }
     
     for nombre, columnas in tablas.items():
