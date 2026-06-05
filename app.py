@@ -830,10 +830,7 @@ else:
                             }
                         )
 
-    # --- MÓDULO: PARAMETRIZACIÓN ---
-    if menu == "⚙️ Parametrización":
-
-
+    
 
 
 
