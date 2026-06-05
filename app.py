@@ -10,6 +10,7 @@
 # En la versión 6.2 se incluye el seguimiento administrativo del contrato que solo se hace solo por el supervisor del contrato
 # En la versión 6.3 se incluye opción de rechazo por parte del referente al igual que el supervisor para que el municipio sudsane la novedad
 # En la versión 6.4 se incluye tabla de secuencia para verificar los pagos realizados
+# En la versión 6.5 se potencia el análisis de datos del tablero y de los informes de supervisor
 
 import streamlit as st
 import pandas as pd
@@ -194,11 +195,12 @@ else:
     rol = st.session_state['rol']
     st.sidebar.info(f"**Usuario:** {st.session_state['user']}\n\n**Rol:** {rol}")
     
-    # 🚀 CONTROL GLOBAL DE DATOS: Carga unificada para evitar NameError en cualquier módulo
+    # 🚀 CONTROL GLOBAL DE DATOS: Carga unificada y adicion de secuencia de pagos
     df_act_raw = get_data("actividades_maestro")
     df_sub_raw = get_data("subactividades")
     df_asig_raw = get_data("asignacion_municipios")
     df_pagos_raw = get_data("seguimiento_pagos")
+    df_secuencia_raw = get_data("secuencia")  # <-- Nueva consulta indexada en memoria
     
     opciones = ["🏠 Dashboard", "📝 Ejecución"]
 
@@ -647,7 +649,189 @@ else:
 
 
             
+                # ==============================================================================
+                # INCLUSIÓN ANALÍTICA: TRACKING DE FRECUENCIA Y COMPORTAMIENTO DE PAGOS
+                # ==============================================================================
+                st.write("---")
+                st.header("💰 Trazabilidad de Flujo de Caja: Secuencia de Pagos")
+                st.caption("Evaluación de la frecuencia de desembolsos, absorción presupuestal y sostenibilidad del PIC territorial.")
 
+                if df_secuencia_raw is None or df_secuencia_raw.empty:
+                    st.info("ℹ️ No se registran secuencias de pagos indexadas en la base de datos para computar indicadores.")
+                else:
+                    # 1. Casting Defensivo y Normalización de Tipos de Datos (Data Science Standard)
+                    df_sec = df_secuencia_raw.copy()
+                    df_sec['valor_cp'] = pd.to_numeric(df_sec['valor_cp'], errors='coerce').fillna(0.0)
+                    df_sec['total_pagado_oc'] = pd.to_numeric(df_sec['total_pagado_oc'], errors='coerce').fillna(0.0)
+                    df_sec['saldo_cp'] = pd.to_numeric(df_sec['saldo_cp'], errors='coerce').fillna(0.0)
+                    df_sec['porcentaje_ejecucion'] = pd.to_numeric(df_sec['porcentaje_ejecucion'], errors='coerce').fillna(0.0)
+                    df_sec['numero_pagos'] = pd.to_numeric(df_sec['numero_pagos'], errors='coerce').fillna(0).astype(int)
+
+                    # 2. Control de Ámbito y Filtros Adaptativos por Rol de Seguridad
+                    if rol == "MUNICIPIO_EJECUTOR":
+                        muni_user_sec = st.session_state.get('muni_asignado')
+                        st.info(f"📍 Restricción perimetral activa: Visualizando datos exclusivos del Municipio de **{muni_user_sec}**.")
+                        df_sec_filtrado = df_sec[df_sec['municipio'] == muni_user_sec].copy()
+                        vista_general_activa = False
+                    else:
+                        # Perfiles Directivos (Parametrizador, Referente, Supervisor): Selector jerárquico General vs Local
+                        lista_municipios_sec = ["TODOS (Consolidado Departamental)"] + sorted(df_sec['municipio'].dropna().unique().tolist())
+                        seleccion_muni_sec = st.selectbox("🎛️ Filtrar Comportamiento de Pagos por Jurisdicción:", lista_municipios_sec, key="sb_secuencia_auditor")
+                        
+                        if seleccion_muni_sec == "TODOS (Consolidado Departamental)":
+                            df_sec_filtrado = df_sec.copy()
+                            vista_general_activa = True
+                        else:
+                            df_sec_filtrado = df_sec[df_sec['municipio'] == seleccion_muni_sec].copy()
+                            vista_general_activa = False
+
+                    # 3. Renderizado de Métricas de Absorción y Frecuencia
+                    if df_sec_filtrado.empty:
+                        st.warning("⚠️ No se localizaron registros de dispersión de giros bajo los parámetros del filtro seleccionado.")
+                    else:
+                        # Cálculos macro-estadísticos ponderados
+                        total_contratos_sec = df_sec_filtrado['numero_contrato'].nunique()
+                        total_giros_emitidos = df_sec_filtrado['numero_pagos'].sum()
+                        total_valor_cp_sec = df_sec_filtrado['valor_cp'].sum()
+                        total_pagado_oc_sec = df_sec_filtrado['total_pagado_oc'].sum()
+                        total_saldo_cp_sec = df_sec_filtrado['saldo_cp'].sum()
+                        
+                        eficiencia_ponderada_sec = (total_pagado_oc_sec / total_valor_cp_sec * 100) if total_valor_cp_sec > 0 else 0.0
+                        promedio_giros_contrato = df_sec_filtrado['numero_pagos'].mean()
+                        ticket_promedio_giro_oc = df_sec_filtrado['total_pagado_oc'].mean()
+
+                        # Paneles KPI Estables y Limpios
+                        kpi_sec1, kpi_sec2, kpi_sec3, kpi_sec4 = st.columns(4)
+                        with kpi_sec1:
+                            st.caption("📋 Contratos Auditados")
+                            st.markdown(f"### {total_contratos_sec:,}")
+                            st.caption(f"Dispersión: {promedio_giros_contrato:.1f} pagos/contrato")
+                        with kpi_sec2:
+                            st.caption("🔢 Cuotas/Pagos Realizados")
+                            st.markdown(f"### {total_giros_emitidos:,} Giros")
+                            st.caption(f"Ticket Prom. Línea: ${ticket_promedio_giro_oc:,.0f}")
+                        with kpi_sec3:
+                            st.caption("💰 Capital Absorbido (OC)")
+                            st.markdown(f"### ${total_pagado_oc_sec:,.0f}")
+                            st.caption(f"Techo Comprometido (CP): ${total_valor_cp_sec:,.0f}")
+                        with kpi_sec4:
+                            st.caption("📈 Coeficiente de Absorción")
+                            st.markdown(f"### {eficiencia_ponderada_sec:.2f}%")
+                            st.caption(f"Reserva Líquida en Caja: ${total_saldo_cp_sec:,.0f}")
+
+                        st.markdown("---")
+
+                        # 4. Ingeniería de Visualización Interactiva (Plotly Express de Alta Densidad)
+                        import plotly.express as px
+                        col_sec_izq, col_sec_der = st.columns(2)
+
+                        with col_sec_izq:
+                            if vista_general_activa:
+                                st.write("#### 📊 Frecuencia Acumulada de Pagos por Ente Territorial")
+                                df_muni_sec_agg = df_sec_filtrado.groupby('municipio').agg({
+                                    'numero_pagos': 'sum',
+                                    'total_pagado_oc': 'sum',
+                                    'valor_cp': 'sum'
+                                }).reset_index().sort_values(by='numero_pagos', ascending=False).head(10)
+
+                                fig_vol_giros = px.bar(
+                                    df_muni_sec_agg,
+                                    x='numero_pagos',
+                                    y='municipio',
+                                    orientation='h',
+                                    title="Top 10 Municipios con Mayor Volumen de Transacciones",
+                                    labels={'numero_pagos': 'Número de Pagos Realizados', 'municipio': 'Municipio'},
+                                    color='total_pagado_oc',
+                                    color_continuous_scale=px.colors.sequential.Bluyl,
+                                    hover_data={'total_pagado_oc': ':$,.2f', 'valor_cp': ':$,.2f'}
+                                )
+                                fig_vol_giros.update_layout(yaxis={'categoryorder': 'total ascending'}, margin=dict(l=150, r=20, t=50, b=40), height=380)
+                                st.plotly_chart(fig_vol_giros, use_container_width=True)
+                            else:
+                                st.write("#### 📊 Maduración de Giros por Línea Contractual Local")
+                                df_sec_filtrado['contrato_tag'] = df_sec_filtrado['numero_contrato'].apply(lambda x: f"Contrato: {x}")
+                                
+                                fig_vol_giros = px.bar(
+                                    df_sec_filtrado,
+                                    x='numero_pagos',
+                                    y='contrato_tag',
+                                    orientation='h',
+                                    title="Frecuencia de Pagos Reportados por Eje de Contratación",
+                                    labels={'numero_pagos': 'Número de Pagos Registrados', 'contrato_tag': 'Estructura Contractual'},
+                                    color='porcentaje_ejecucion',
+                                    color_continuous_scale=px.colors.sequential.Viridis,
+                                    hover_data={'total_pagado_oc': ':$,.2f', 'saldo_cp': ':$,.2f', 'porcentaje_ejecucion': ':.2f%'}
+                                )
+                                fig_vol_giros.update_layout(yaxis={'categoryorder': 'total ascending'}, margin=dict(l=150, r=20, t=50, b=40), height=380)
+                                st.plotly_chart(fig_vol_giros, use_container_width=True)
+
+                        with col_sec_der:
+                            st.write("#### 📈 Balance Estructural de Presupuestos (Devengado vs. Reserva)")
+                            if vista_general_activa:
+                                df_bal_muni_sec = df_sec_filtrado.groupby('municipio').agg({
+                                    'total_pagado_oc': 'sum',
+                                    'saldo_cp': 'sum'
+                                }).reset_index().sort_values(by='total_pagado_oc', ascending=False).head(8)
+
+                                df_melted_sec = df_bal_muni_sec.melt(id_vars=['municipio'], value_vars=['total_pagado_oc', 'saldo_cp'],
+                                                                     var_name='Estado Financiero', value_name='Presupuesto ($)')
+                                df_melted_sec['Estado Financiero'] = df_melted_sec['Estado Financiero'].map({'total_pagado_oc': 'Total Girado', 'saldo_cp': 'Saldo en Reserva'})
+
+                                fig_balance_sec = px.bar(
+                                    df_melted_sec,
+                                    x='municipio',
+                                    y='Presupuesto ($)',
+                                    color='Estado Financiero',
+                                    title="Composición Presupuestal en Top 8 Municipios de Alta Ejecución",
+                                    labels={'municipio': 'Entidad Territorial', 'Presupuesto ($)': 'Monto Económico ($)'},
+                                    barmode='stack',
+                                    color_discrete_sequence=["#059669", "#DC2626"]
+                                )
+                                fig_balance_sec.update_layout(xaxis=dict(tickangle=-25), margin=dict(l=50, r=20, t=50, b=80), height=380)
+                                st.plotly_chart(fig_balance_sec, use_container_width=True)
+                            else:
+                                df_melted_sec = df_sec_filtrado.melt(id_vars=['numero_contrato'], value_vars=['total_pagado_oc', 'saldo_cp'],
+                                                                     var_name='Estado Financiero', value_name='Presupuesto ($)')
+                                df_melted_sec['Estado Financiero'] = df_melted_sec['Estado Financiero'].map({'total_pagado_oc': 'Total Girado', 'saldo_cp': 'Saldo en Reserva'})
+
+                                fig_balance_sec = px.bar(
+                                    df_melted_sec,
+                                    x='numero_contrato',
+                                    y='Presupuesto ($)',
+                                    color='Estado Financiero',
+                                    title="Balance Presupuestal Discriminado por Contrato Local",
+                                    labels={'numero_contrato': 'Código Contractual', 'Presupuesto ($)': 'Valor ($)'},
+                                    barmode='group',
+                                    color_discrete_sequence=["#2563EB", "#D97706"]
+                                )
+                                fig_balance_sec.update_layout(margin=dict(l=50, r=20, t=50, b=40), height=380)
+                                st.plotly_chart(fig_balance_sec, use_container_width=True)
+
+                        # 5. Trazabilidad de Puntos de Control y Hitos Temporales
+                        st.write("#### 📑 Matriz Cronológica de Hitos de Liquidación de Giros")
+                        df_grid_sec = df_sec_filtrado[[
+                            'municipio', 'numero_contrato', 'cp_nit_beneficiario', 'numero_pagos', 
+                            'primer_pago', 'ultimo_pago', 'valor_cp', 'total_pagado_oc', 'porcentaje_ejecucion'
+                        ]].copy()
+                        
+                        df_grid_sec.columns = [
+                            'Municipio', 'N° Contrato', 'NIT/Cédula Beneficiario', 'Giros Totales', 
+                            'Hito Primer Pago', 'Hito Último Pago', 'Valor Registro CP', 'Total Desembolsado', 'Eficiencia Real'
+                        ]
+                        
+                        st.dataframe(
+                            df_grid_sec.sort_values(by='Giros Totales', ascending=False),
+                            use_container_width=True,
+                            hide_index=True,
+                            column_config={
+                                "Valor Registro CP": st.column_config.NumberColumn("Valor Registro CP", format="$%,.2f"),
+                                "Total Desembolsado": st.column_config.NumberColumn("Total Desembolsado", format="$%,.2f"),
+                                "Eficiencia Real": st.column_config.NumberColumn("Eficiencia Real", format="%.2f%%")
+                            }
+                        )
+
+    # --- MÓDULO: PARAMETRIZACIÓN ---
+    if menu == "⚙️ Parametrización":
 
 
 
