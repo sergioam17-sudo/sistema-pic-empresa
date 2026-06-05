@@ -6,6 +6,7 @@
 # En la versión 5.8 se incluye mejorar el informe de Word
 # En la versión 5.9 se incluye el colocar en todas las tablas de trazabilidad y seguimiento las columnas de id_actividad y # nombre de la actividad
 #En esta versión 6 se crear un certificado o acta de conformidad de las actividades realizadas por el referente la cual debe  # generarse de forma automática donde se indique para el municipio las actividades revisadas y aprobadas con un análisis   # de lo operativo y financiero revisado
+# En la Versión 6.1 se incluye la columna de observaciones para el supervisor y e referente
 
 
 import streamlit as st
@@ -28,7 +29,7 @@ def init_excel_db():
         "actividades_maestro": ["id_actividad", "nombre_actividad", "descripcion", "meta_global", "unidad_medida", "valor_total_actividad", "programa_responsable"],
         "subactividades": ["id_sub", "id_actividad", "nombre_subactividad", "valor_sub", "meta_sub", "unidad_medida_sub", "peso"],
         "asignacion_municipios": ["id_asig", "id_sub", "municipio", "num_contrato", "num_pagos", "valor_asignado", "meta_municipal", "unidad_medida_muni"],
-        "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "soporte_url", "estado", "referente_aprobador", "acta_referente", "supervisor_aprobador", "motivo_rechazo"]
+        "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "soporte_url", "estado", "referente_aprobador", "acta_referente", "observaciones_referente", "supervisor_aprobador", "motivo_rechazo"]
     }
     
     for nombre, columnas in tablas.items():
@@ -1123,11 +1124,11 @@ else:
 
 
 
-            # --- SUB-MÓDULO EXCLUSIVO: REFERENTE DEPARTAMENTAL (OPTIMIZADO V6 ACTAS IA) ---
+            # --- SUB-MÓDULO EXCLUSIVO: REFERENTE DEPARTAMENTAL (OPTIMIZADO V6 ACTAS IA + CONTRATO + OBSERVACIONES) ---
             if rol == "REFERENTE_DEPARTAMENTAL":
                 st.title("⚖️ Validación de Reportes y Generación de Actas de Conformidad")
                 
-                # Ensamble integral del esquema analítico (Finanzas + Salud Pública)
+                # Ensamble integral del esquema analítico (Finanzas + Salud Pública) [cite: 222]
                 if not df_p.empty and not df_a.empty and not df_s.empty:
                     df_merge_ref = df_p.merge(df_a, on="id_asig").merge(df_s, on="id_sub")
                     if not df_act_raw.empty:
@@ -1135,7 +1136,7 @@ else:
                 else:
                     df_merge_ref = pd.DataFrame()
 
-                # Segmentación de UX: Gestión operativa vs Auditoría de Actas por Periodo
+                # Segmentación de UX: Gestión operativa vs Auditoría de Actas por Periodo [cite: 223]
                 tab_gestion, tab_acta_ia = st.tabs(["📥 Validar Reportes Entrantes", "📄 Generador de Actas Certificadas (IA)"])
 
                 with tab_gestion:
@@ -1155,10 +1156,11 @@ else:
                         with st.form("form_revision_referente"):
                             id_rev = st.number_input("ID de Seguimiento a Validar (Dar OK):", min_value=1, step=1)
                             acta_link = st.text_input("Enlace General al Repositorio de Evidencias / Acta (Opcional)")
+                            obs_tecnicas = st.text_area("✍️ Observaciones de la Revisión Técnica (Aparecerán en el Acta e Informes):")
                             
                             if st.form_submit_button("Confirmar Validación Técnica 🚀"):
                                 df_rev = get_data("seguimiento_pagos")
-                                columnas_texto = ['estado', 'acta_referente', 'referente_aprobador']
+                                columnas_texto = ['estado', 'acta_referente', 'referente_aprobador', 'observaciones_referente']
                                 for col in columnas_texto:
                                     if col in df_rev.columns:
                                         df_rev[col] = df_rev[col].astype(str).replace(['nan', 'None', '<NA>'], '')
@@ -1167,10 +1169,11 @@ else:
                                     
                                 df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'estado'] = 'REVISADO_REFERENTE'
                                 df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'acta_referente'] = str(acta_link)
+                                df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'observaciones_referente'] = str(obs_tecnicas)
                                 df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'referente_aprobador'] = str(st.session_state['user'])
 
                                 if safe_update("seguimiento_pagos", df_rev):
-                                    st.success(f"✅ El reporte ID {id_rev} ha sido avalado con éxito.")
+                                    st.success(f"✅ El reporte ID {id_rev} ha sido avalado con observaciones.")
                                     st.rerun()
 
                 with tab_acta_ia:
@@ -1199,8 +1202,19 @@ else:
                         else:
                             st.success(f"📋 Se detectaron **{len(df_actas_filtrado)}** subactividades procesadas para el acta.")
                             
-                            df_resumen_tabla = df_actas_filtrado[['id_seguimiento', 'nombre_subactividad', 'meta_municipal', 'avance_meta', 'valor_calculado']].copy()
-                            df_resumen_tabla.columns = ['ID Seguimiento', 'Subactividad', 'Meta Municipal', 'Avance Físico', 'Valor Devengado ($)']
+                            # --- EXTRACCIÓN DINÁMICA DEL NÚMERO DE CONTRATO ---
+                            contrato_municipio = str(df_actas_filtrado['num_contrato'].iloc[0]) if 'num_contrato' in df_actas_filtrado.columns and not df_actas_filtrado['num_contrato'].empty else "POR DEFINIR"
+                            
+                            st.info(f"📄 **Información del Contrato Localizado:** {contrato_municipio}")
+                            
+                            # Normalizar la columna de observaciones del referente para prevenir fallas visuales
+                            if 'observaciones_referente' not in df_actas_filtrado.columns:
+                                df_actas_filtrado['observaciones_referente'] = "Sin observaciones registradas"
+                            else:
+                                df_actas_filtrado['observaciones_referente'] = df_actas_filtrado['observaciones_referente'].fillna("Sin observaciones")
+
+                            df_resumen_tabla = df_actas_filtrado[['id_seguimiento', 'nombre_subactividad', 'meta_municipal', 'avance_meta', 'valor_calculado', 'observaciones_referente']].copy()
+                            df_resumen_tabla.columns = ['ID Seguimiento', 'Subactividad', 'Meta Municipal', 'Avance Físico', 'Valor Devengado ($)', 'Observaciones del Referente']
                             st.dataframe(df_resumen_tabla, use_container_width=True, hide_index=True)
 
                             # Cálculos agregados científicos de datos y financieros
@@ -1209,14 +1223,16 @@ else:
                             total_metas_ejecutadas = df_actas_filtrado['avance_meta'].sum()
                             eficiencia_operativa_acta = (total_metas_ejecutadas / total_metas_programadas * 100) if total_metas_programadas > 0 else 0
                             
-                            # Estructuración de cadena sintética contextual para el prompt de la IA
+                            # Estructuración de cadena sintética contextual para el prompt de la IA incluyendo observaciones del referente
                             lineas_actividades = []
                             for idx, row in df_actas_filtrado.iterrows():
                                 programa_txt = row.get('programa_responsable', 'Salud Pública General')
+                                obs_fila = row.get('observaciones_referente', 'Sin observaciones')
                                 lineas_actividades.append(
                                     f"- Actividad: {row['nombre_subactividad']} | Componente: {programa_txt} | "
                                     f"Meta Programada: {row['meta_municipal']} | Avance Realizado: {row['avance_meta']} | "
-                                    f"Valor Proporcional Líquido: ${row['valor_calculado']:,.2f}"
+                                    f"Valor Proporcional Líquido: ${row['valor_calculado']:,.2f} | "
+                                    f"Dictamen Técnico del Referente: {obs_fila}"
                                 )
                             bloque_actividades_contexto = "\n".join(lineas_actividades)
 
@@ -1227,8 +1243,9 @@ else:
                                     Actúa como un Referente Departamental de Salud Pública, Auditor Técnico de Cuentas y Científico de Datos.
                                     Escribe el cuerpo analítico de una CERTIFICACIÓN / ACTA DE CONFORMIDAD TÉCNICA Y FINANCIERA para el Plan de Intervenciones Colectivas (PIC).
                                     
-                                    DATOS DE CONTROL GEOGRÁFICO Y TEMPORAL:
+                                    DATOS DE CONTROL GEOGRÁFICO, TEMPORAL Y CONTRACTUAL:
                                     - Municipio Auditado: {muni_seleccionado}
+                                    - Número de Contrato Estatal: {contrato_municipio}
                                     - Cuota de Pago / Periodo: Periodo N° {periodo_seleccionado}
                                     - Profesional Evaluador Emisor: {st.session_state['user']}
                                     
@@ -1238,13 +1255,13 @@ else:
                                     - Sumatoria de Avances Físicos Reportados: {total_metas_ejecutadas}
                                     - Índice de Eficiencia Física Global del Periodo: {eficiencia_operativa_acta:.2f}%
                                     
-                                    DESGLOSE DE ACTIVIDADES EVALUADAS TÉCNICAMENTE:
+                                    DESGLOSE DE ACTIVIDADES EVALUADAS TÉCNICAMENTE Y OBSERVACIONES DEL REFERENTE:
                                     {bloque_actividades_contexto}
                                     
                                     REQUISITOS FORMALES DE REDACCIÓN DEL DICTAMEN:
-                                    Escribe el documento con tono corporativo, pericial, riguroso y formal. Debe contener obligatoriamente:
-                                    1. ANÁLISIS FINANCIERO DE LA VIGENCIA (Concepto técnico sobre el valor devengado, concordancia con el presupuesto asignado y proporcionalidad del cobro).
-                                    2. ANÁLISIS OPERATIVO Y SANITARIO (Evaluación epidemiológica del cumplimiento de metas físicas, justificación del avance en campo y suficiencia de las evidencias reportadas).
+                                    Escribe el documento con tono corporativo, pericial, riguroso y formal. Debe hacer mención expresa al Contrato N° {contrato_municipio}, sintetizar e integrar obligatoriamente el hallazgo plasmado en el 'Dictamen Técnico del Referente' de cada subactividad y estructurar:
+                                    1. ANÁLISIS FINANCIERO DE LA VIGENCIA (Concepto técnico sobre el valor devengado, concordancia con el presupuesto asignado y proporcionalidad del cobro bajo el marco legal del contrato).
+                                    2. ANÁLISIS OPERATIVO Y SANITARIO (Evaluación epidemiológica del cumplimiento de metas físicas, justificación del avance en campo y suficiencia de las evidencias e incorporando las observaciones técnicas recopiladas).
                                     3. OBSERVACIONES O RECOMENDACIONES TÉCNICAS (Mínimo 2 sugerencias viables de optimización de procesos basadas en los datos expuestos para el siguiente periodo).
                                     """
 
@@ -1271,7 +1288,7 @@ else:
                                             raise Exception(f"Fallo en comunicación externa (Código: {res_ref.status_code})")
                                             
                                     except Exception as e:
-                                        acta_ia_texto = f"ANÁLISIS TÉCNICO-FINANCIERO CONTRACTUAL:\n\nEl municipio de {muni_seleccionado} presenta una ejecución financiera certificada de ${total_financiero_periodo:,.2f} durante el Periodo N° {periodo_seleccionado}.\n\nSe evidencia un índice de eficiencia operativa promedio del {eficiencia_operativa_acta:.2f}% en el cumplimiento de las metas físicas estipuladas. Las evidencias técnicas anexadas en el repositorio digital institucional cumplen formalmente con los lineamientos del manual de supervisión departamental del PIC."
+                                        acta_ia_texto = f"ANÁLISIS TÉCNICO-FINANCIERO CONTRACTUAL:\n\nEl municipio de {muni_seleccionado}, bajo el amparo del Contrato N° {contrato_municipio}, presenta una ejecución financiera certificada de ${total_financiero_periodo:,.2f} durante el Periodo N° {periodo_seleccionado}.\n\nSe evidencia un índice de eficiencia operativa promedio del {eficiencia_operativa_acta:.2f}% en el cumplimiento de las metas físicas estipuladas. Las observaciones del área técnica reafirman que las evidencias técnicas anexadas en el repositorio digital institucional cumplen formalmente con los lineamientos del manual de supervisión departamental del PIC."
 
                                     st.markdown("### 📄 Cuerpo de Acta Generado por IA")
                                     st.markdown(acta_ia_texto)
@@ -1300,20 +1317,22 @@ else:
 
                                     # Bloque de Control de Metadatos Administrativos
                                     doc_acta.add_paragraph(f"Municipio Beneficiario: {muni_seleccionado}")
+                                    doc_acta.add_paragraph(f"Número de Contrato Estatal: {contrato_municipio}")
                                     doc_acta.add_paragraph(f"Periodo de Pago / Cuota Evaluada: Periodo N° {periodo_seleccionado}")
                                     doc_acta.add_paragraph(f"Fecha de Certificación: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
                                     doc_acta.add_paragraph(f"Profesional Referente Evaluador: {st.session_state['user']}")
                                     doc_acta.add_paragraph("------------------------------------------------------------------------------------------------------------------------")
 
-                                    # Tabla Estructural de Datos Cuantitativos (Evita el procesamiento manual)
-                                    doc_acta.add_heading('1. Balance Cuantitativo de Actividades Revisadas', level=2)
-                                    tabla_ref = doc_acta.add_table(rows=1, cols=4)
+                                    # Tabla Estructural de Datos Cuantitativos y Cualitativos
+                                    doc_acta.add_heading('1. Balance Cuantitativo y Observaciones de Actividades Revisadas', level=2)
+                                    tabla_ref = doc_acta.add_table(rows=1, cols=5)
                                     tabla_ref.style = 'Light Shading Accent 1'
                                     hdr_cells_ref = tabla_ref.rows[0].cells
                                     hdr_cells_ref[0].text = 'Subactividad Evaluada'
-                                    hdr_cells_ref[1].text = 'Meta Programada'
+                                    hdr_cells_ref[1].text = 'Meta Prog.'
                                     hdr_cells_ref[2].text = 'Avance Físico'
                                     hdr_cells_ref[3].text = 'Monto Proporcional'
+                                    hdr_cells_ref[4].text = 'Observación Técnica del Referente'
 
                                     for _, fila_acta in df_actas_filtrado.iterrows():
                                         row_c = tabla_ref.add_row().cells
@@ -1321,6 +1340,7 @@ else:
                                         row_c[1].text = str(fila_acta['meta_municipal'])
                                         row_c[2].text = str(fila_acta['avance_meta'])
                                         row_c[3].text = f"${fila_acta['valor_calculado']:,.2f}"
+                                        row_c[4].text = str(fila_acta['observaciones_referente'])
 
                                     p_totales = doc_acta.add_paragraph()
                                     p_totales.add_run(f"\nTOTAL FINANCIERO CERTIFICADO EN EL PERIODO: ${total_financiero_periodo:,.2f}\n").bold = True
@@ -1343,10 +1363,11 @@ else:
                                     st.download_button(
                                         label="📥 Descargar Acta de Conformidad Oficial (.docx)",
                                         data=bio_acta,
-                                        file_name=f"Acta_Conformidad_PIC_{muni_seleccionado}_Pago_{periodo_seleccionado}.docx",
+                                        file_name=f"Acta_Conformidad_PIC_{muni_seleccionado}_Contrato_{contrato_municipio}_Pago_{periodo_seleccionado}.docx",
                                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                         key="btn_download_acta_word"
                                     )
+
 
 
 
@@ -1392,10 +1413,13 @@ else:
                             st.write(f"**Municipio:** {fila_sel['municipio']}")
                             st.write(f"**Actividad:** {fila_sel['nombre_subactividad']}")
                             st.write(f"**Monto Proporcional:** ${fila_sel['valor_calculado']:,.2f}")
+                            st.write(f"**💬 Observaciones del Referente:** {fila_sel.get('observaciones_referente', 'Sin observaciones')}")
                         with c_aud2:
                             st.write(f"**🧑‍💼 Avalado por Referente:** :blue[{fila_sel['referente_aprobador']}]")
                             st.write(f"🔗 [Ver Evidencias del Municipio]({fila_sel['soporte_municipio']})")
                             st.write(f"📄 [Ver Acta Adjunta del Referente]({fila_sel['acta_referente']})")
+
+
 
                     # Formulario de Dictamen Final
                     with st.form("form_dictamen_supervisor"):
@@ -1531,11 +1555,14 @@ else:
                             })
                             st.bar_chart(data=df_grafica_informe, x="Dimensión Analizada", y="Porcentaje de Cumplimiento (%)")
 
-                            # 4. Construcción del Prompt de Contexto para la IA
+                            # Compilar todas las observaciones técnicas ingresadas por los referentes en los registros analizados
+                            lista_obs_inf = df_filtrado['observaciones_referente'].dropna().astype(str).tolist() if 'observaciones_referente' in df_filtrado.columns else []
+                            bloque_observaciones_inf = "\n".join([f"- {o}" for o in lista_obs_inf if o.strip() != ""]) if lista_obs_inf else "Ninguna registrada."
+
+                            # 4. Construcción del Prompt de Contexto para la IA con inclusiones cualitativas
                             contexto_ia = f"""
                             Actúa como un Consorcio Experto de Alta Gerencia de Proyectos, Financiero, Salubrista Público, Epidemiólogo y Científico de Datos.
                             Analiza los siguientes indicadores del Plan de Intervenciones Colectivas (PIC) de Santander para el ámbito: {tipo_informe} {f'({muni_filtro})' if muni_filtro else ''}.
-                            
                             DATOS FINANCIEROS:
                             - Presupuesto Asignado Estructural: ${total_asignado_inf:,.2f}
                             - Presupuesto Devengado / Ejecutado (ACEPTADO): ${total_ejecutado_inf:,.2f}
@@ -1548,6 +1575,10 @@ else:
                             - Meta Nominal Agregada: {meta_programada} intervenciones
                             - Avance Físico Realizado: {meta_avanzada} intervenciones
                             - Índice de Cumplimiento Operativo: {porcentaje_operativo:.2f}%
+                            
+                            OBSERVACIONES TÉCNICAS RECOPILADAS POR LOS REFERENTES:
+                            {bloque_observaciones_inf}
+
                             
                             Escribe un informe corporativo riguroso, técnico y analítico. Debe incluir de forma obligatoria las siguientes secciones detalladas con un lenguaje de auditoría médica y epidemiológica:
                             1. Resumen Ejecutivo y Diagnóstico de Situación actual.
