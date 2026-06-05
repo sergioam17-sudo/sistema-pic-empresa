@@ -7,7 +7,7 @@
 # En la versión 5.9 se incluye el colocar en todas las tablas de trazabilidad y seguimiento las columnas de id_actividad y # nombre de la actividad
 #En esta versión 6 se crear un certificado o acta de conformidad de las actividades realizadas por el referente la cual debe  # generarse de forma automática donde se indique para el municipio las actividades revisadas y aprobadas con un análisis   # de lo operativo y financiero revisado
 # En la Versión 6.1 se incluye la columna de observaciones para el supervisor y e referente
-
+# En la versión 6.2 se incluye el seguimiento administrativo del contrato que solo se hace solo por el supervisor del contrato
 
 import streamlit as st
 import pandas as pd
@@ -29,7 +29,7 @@ def init_excel_db():
         "actividades_maestro": ["id_actividad", "nombre_actividad", "descripcion", "meta_global", "unidad_medida", "valor_total_actividad", "programa_responsable"],
         "subactividades": ["id_sub", "id_actividad", "nombre_subactividad", "valor_sub", "meta_sub", "unidad_medida_sub", "peso"],
         "asignacion_municipios": ["id_asig", "id_sub", "municipio", "num_contrato", "num_pagos", "valor_asignado", "meta_municipal", "unidad_medida_muni"],
-        "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "soporte_url", "estado", "referente_aprobador", "acta_referente", "observaciones_referente", "supervisor_aprobador", "motivo_rechazo"]
+        "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "soporte_url", "estado", "referente_aprobador", "acta_referente", "observaciones_referente", "supervisor_aprobador", "motivo_rechazo", "chk_plan_trabajo", "chk_cronograma", "chk_personal", "chk_seg_social", "chk_inf_parcial", "chk_inf_final", "chk_polizas"]
     }
     
     for nombre, columnas in tablas.items():
@@ -1421,33 +1421,63 @@ else:
 
 
 
-                    # Formulario de Dictamen Final
+                    # Formulario de Dictamen Final con Auditoría y Lista de Chequeo Administrativa
                     with st.form("form_dictamen_supervisor"):
+                        st.markdown("### 📋 Lista de Chequeo de Seguimiento Administrativo")
+                        st.caption("Diligencie el cumplimiento normativo aplicable al periodo bajo examen.")
+                        
+                        opciones_chk = ["Si", "No", "No Aplica"]
+                        
+                        c_chk1, c_chk2 = st.columns(2)
+                        val_plan = c_chk1.selectbox("1. ¿El contratante entrega Plan de Trabajo concertado?", opciones_chk)
+                        val_crono = c_chk1.selectbox("2. ¿Entrega Cronograma mensualizado de ejecución?", opciones_chk)
+                        val_pers = c_chk1.selectbox("3. ¿Cuenta con la totalidad del personal idóneo solicitado?", opciones_chk)
+                        val_segsoc = c_chk1.selectbox("4. ¿Realiza y anexa el pago de Seguridad Social de las planillas?", opciones_chk)
+                        
+                        val_iparcial = c_chk2.selectbox("5. ¿Se entrega el Informe Parcial técnico correspondiente?", opciones_chk)
+                        val_ifinal = c_chk2.selectbox("6. ¿Se entrega el Informe Final consolidado del proceso?", opciones_chk)
+                        val_polizas = c_chk2.selectbox("7. ¿Las pólizas de cumplimiento contractual se encuentran vigentes?", opciones_chk)
+                        
+                        st.markdown("---")
                         dictamen = st.radio("Resolución de la Supervisión:", ["Aprobar Actividad (ACEPTADA)", "Rechazar y Devolver al Municipio"])
                         motivo = st.text_area("Motivo del rechazo / Observaciones (Obligatorio en caso de rechazo):")
                         
                         if st.form_submit_button("Confirmar y Sincronizar Dictamen"):
                             df_pagos_master = get_data("seguimiento_pagos")
                             
-                            # Asegurar columnas en la matriz estructural
-                            for c in ['estado', 'motivo_rechazo']:
+                            # Asegurar columnas en la matriz estructural de persistencia
+                            columnas_auditoria = [
+                                'estado', 'motivo_rechazo', 'supervisor_aprobador',
+                                'chk_plan_trabajo', 'chk_cronograma', 'chk_personal', 
+                                'chk_seg_social', 'chk_inf_parcial', 'chk_inf_final', 'chk_polizas'
+                            ]
+                            for c in columnas_auditoria:
                                 if c not in df_pagos_master.columns:
                                     df_pagos_master[c] = ""
 
                             if dictamen == "Aprobar Actividad (ACEPTADA)":
-                                # Forzamos la conversión a tipo string para evitar conflictos de dtypes de Pandas
                                 df_pagos_master['estado'] = df_pagos_master['estado'].astype(str)
                                 df_pagos_master['motivo_rechazo'] = df_pagos_master['motivo_rechazo'].astype(str)
                                 
-                                
-                                # Asignación individual y segura por columnas
+                                # Asignación de variables operativas, financieras y la nueva lista de chequeo administrativa
                                 df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'estado'] = 'ACEPTADA'
                                 df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'motivo_rechazo'] = 'Aprobado sin novedades'
                                 df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'supervisor_aprobador'] = str(st.session_state['user'])
                                 
+                                df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'chk_plan_trabajo'] = str(val_plan)
+                                df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'chk_cronograma'] = str(val_crono)
+                                df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'chk_personal'] = str(val_pers)
+                                df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'chk_seg_social'] = str(val_segsoc)
+                                df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'chk_inf_parcial'] = str(val_iparcial)
+                                df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'chk_inf_final'] = str(val_ifinal)
+                                df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'chk_polizas'] = str(val_polizas)
+                                
                                 if safe_update("seguimiento_pagos", df_pagos_master):
-                                    st.success(f"✅ El pago ID {id_evaluar} fue marcado como ACEPTADA exitosamente.")
+                                    st.success(f"✅ El pago ID {id_evaluar} fue marcado como ACEPTADA con su trazabilidad administrativa.")
                                     st.rerun()
+
+
+
                             else:
                                 if not motivo.strip():
                                     st.error("❌ Error estructural: Debe ingresar el motivo del rechazo para poder devolver el trámite.")
@@ -1559,11 +1589,18 @@ else:
                             lista_obs_inf = df_filtrado['observaciones_referente'].dropna().astype(str).tolist() if 'observaciones_referente' in df_filtrado.columns else []
                             bloque_observaciones_inf = "\n".join([f"- {o}" for o in lista_obs_inf if o.strip() != ""]) if lista_obs_inf else "Ninguna registrada."
 
-                            # 4. Construcción del Prompt de Contexto para la IA con inclusiones cualitativas
+                            # Extraer y compilar el estado consolidado de la lista de chequeo administrativa de los registros procesados
+                            cant_plan_si = len(df_filtrado[df_filtrado['chk_plan_trabajo'] == 'Si']) if 'chk_plan_trabajo' in df_filtrado.columns else 0
+                            cant_crono_si = len(df_filtrado[df_filtrado['chk_cronograma'] == 'Si']) if 'chk_cronograma' in df_filtrado.columns else 0
+                            cant_segsoc_si = len(df_filtrado[df_filtrado['chk_seg_social'] == 'Si']) if 'chk_seg_social' in df_filtrado.columns else 0
+                            cant_iparcial_si = len(df_filtrado[df_filtrado['chk_inf_parcial'] == 'Si']) if 'chk_inf_parcial' in df_filtrado.columns else 0
+                            
+                            # 4. Construcción del Prompt de Contexto para la IA con triple dimensión (Financiera, Operativa y Administrativa)
                             contexto_ia = f"""
                             Actúa como un Consorcio Experto de Alta Gerencia de Proyectos, Financiero, Salubrista Público, Epidemiólogo y Científico de Datos.
                             Analiza los siguientes indicadores del Plan de Intervenciones Colectivas (PIC) de Santander para el ámbito: {tipo_informe} {f'({muni_filtro})' if muni_filtro else ''}.
-                            DATOS FINANCIEROS:
+                            
+                            DATOS FINANCIEROS CLAVE:
                             - Presupuesto Asignado Estructural: ${total_asignado_inf:,.2f}
                             - Presupuesto Devengado / Ejecutado (ACEPTADO): ${total_ejecutado_inf:,.2f}
                             - Saldo Líquido Remanente: ${saldo_pendiente_inf:,.2f}
@@ -1576,8 +1613,19 @@ else:
                             - Avance Físico Realizado: {meta_avanzada} intervenciones
                             - Índice de Cumplimiento Operativo: {porcentaje_operativo:.2f}%
                             
+                            DATOS DE TRAZABILIDAD Y SEGUIMIENTO ADMINISTRATIVO (LISTA DE CHEQUEO):
+                            - Reportes con Plan de Trabajo Validado (Sí): {cant_plan_si} de {len(df_filtrado)} registros.
+                            - Reportes con Cronograma Mensual Cumplido (Sí): {cant_crono_si} de {len(df_filtrado)} registros.
+                            - Reportes con Certificación de Seguridad Social Acreditada (Sí): {cant_segsoc_si} de {len(df_filtrado)} registros.
+                            - Reportes con Informe Técnico Parcial Soportado (Sí): {cant_iparcial_si} de {len(df_filtrado)} registros.
+                            
                             OBSERVACIONES TÉCNICAS RECOPILADAS POR LOS REFERENTES:
                             {bloque_observaciones_inf}
+                            
+                            Escribe un informe corporativo riguroso, técnico y analítico.
+                            Debe incluir de forma obligatoria un acápite exclusivo de 'EVALUACIÓN Y CUMPLIMIENTO ADMINISTRATIVO', acoplado de manera sinérgica al balance financiero y operativo tradicional. Use lenguaje de auditoría médica, administrativa y epidemiológica.
+
+
 
                             
                             Escribe un informe corporativo riguroso, técnico y analítico. Debe incluir de forma obligatoria las siguientes secciones detalladas con un lenguaje de auditoría médica y epidemiológica:
@@ -1669,7 +1717,34 @@ else:
 
                             doc.add_paragraph("\n")
                             
-                            doc.add_heading('2. Cuerpo Analítico, Conclusiones y Recomendaciones (IA)', level=2)
+                            # --- NUEVA INYECCIÓN: TABLA DE SEGUIMIENTO ADMINISTRATIVO NATIVA ---
+                            doc.add_heading('2. Matriz de Cumplimiento y Trazabilidad Administrativa', level=2)
+                            table_adm = doc.add_table(rows=1, cols=2)
+                            table_adm.style = 'Light Shading Accent 2'
+                            hdr_adm_cells = table_adm.rows[0].cells
+                            hdr_adm_cells[0].text = 'Criterio Administrativo Evaluado por Supervisión'
+                            hdr_adm_cells[1].text = 'Estado Consolidado (Frecuencia / Cumplimiento)'
+                            
+                            items_admin = [
+                                ("Entrega formal de Plan de Trabajo Concertado", f"{cant_plan_si} Registros con Aprobación (Si)"),
+                                ("Entrega y cumplimiento de Cronograma Mensualizado", f"{cant_crono_si} Registros con Aprobación (Si)"),
+                                ("Verificación y Pago de Planillas de Seguridad Social", f"{cant_segsoc_si} Registros Soportados (Si)"),
+                                ("Radicación de Informes Técnicos Parciales de Soporte", f"{cant_iparcial_si} Registros Consolidados (Si)")
+                            ]
+                            
+                            for crit, est in items_admin:
+                                row_adm = table_adm.add_row().cells
+                                row_adm[0].text = crit
+                                row_adm[1].text = est
+                                
+                            doc.add_paragraph("\n")
+                            
+                            doc.add_heading('3. Cuerpo Analítico, Conclusiones y Recomendaciones de Gestión (IA)', level=2)
+
+
+
+
+
                             doc.add_paragraph(analisis_ia)
 
                             bio = io.BytesIO()
