@@ -108,23 +108,26 @@ def guardar_nuevo_usuario(nombre, email, clave, rol, muni):
 def get_data_cached(nombre_hoja):
     return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja)
 
+# --- CÓDIGO CORREGIDO Y OPTIMIZADO ---
 def get_data(nombre_hoja, forzar=False):
     if forzar:
         # Si se acaba de guardar algo, limpiamos la caché y leemos directo
         st.cache_data.clear()
         try:
-            return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl="0s")
+            return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl=0)
         except Exception:
             time.sleep(2)
-            return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl="0s")
+            return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl=0)
     else:
         # Uso de la memoria local para consultas masivas
         try:
             return get_data_cached(nombre_hoja)
         except Exception as e:
-            st.error(f"Error de conexión en {nombre_hoja}. Reintentando...")
+            st.error(f"⚠️ Error de conexión en '{nombre_hoja}'. Reintentando lectura directa...")
             time.sleep(2)
-            return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl="0s")
+            return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl=0)
+
+
 
 
 # --- OPTIMIZACIÓN: Solo inicializar una vez por sesión para ahorrar cuota ---
