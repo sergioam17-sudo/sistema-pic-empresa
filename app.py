@@ -1456,10 +1456,19 @@ else:
                                     df_pagos_master[c] = ""
 
                             if dictamen == "Aprobar Actividad (ACEPTADA)":
-                                df_pagos_master['estado'] = df_pagos_master['estado'].astype(str)
-                                df_pagos_master['motivo_rechazo'] = df_pagos_master['motivo_rechazo'].astype(str)
+                                # --- SOLUCIÓN ANTICASH: Conversión explícita y preventiva de columnas de texto de auditoría ---
+                                columnas_auditoria_texto = [
+                                    'estado', 'motivo_rechazo', 'supervisor_aprobador',
+                                    'chk_plan_trabajo', 'chk_cronograma', 'chk_personal', 
+                                    'chk_seg_social', 'chk_inf_parcial', 'chk_inf_final', 'chk_polizas'
+                                ]
+                                for col in columnas_auditoria_texto:
+                                    if col in df_pagos_master.columns:
+                                        df_pagos_master[col] = df_pagos_master[col].astype(str).replace(['nan', 'None', '<NA>'], '')
+                                    else:
+                                        df_pagos_master[col] = ''
                                 
-                                # Asignación de variables operativas, financieras y la nueva lista de chequeo administrativa
+                                # Asignación de variables operativas, financieras y la nueva lista de chequeo administrativa (Alineadas de forma segura)
                                 df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'estado'] = 'ACEPTADA'
                                 df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'motivo_rechazo'] = 'Aprobado sin novedades'
                                 df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'supervisor_aprobador'] = str(st.session_state['user'])
@@ -1471,6 +1480,7 @@ else:
                                 df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'chk_inf_parcial'] = str(val_iparcial)
                                 df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'chk_inf_final'] = str(val_ifinal)
                                 df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'chk_polizas'] = str(val_polizas)
+
                                 
                                 if safe_update("seguimiento_pagos", df_pagos_master):
                                     st.success(f"✅ El pago ID {id_evaluar} fue marcado como ACEPTADA con su trazabilidad administrativa.")
