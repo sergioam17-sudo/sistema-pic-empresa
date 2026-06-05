@@ -32,7 +32,7 @@ def init_excel_db():
         "subactividades": ["id_sub", "id_actividad", "nombre_subactividad", "valor_sub", "meta_sub", "unidad_medida_sub", "peso"],
         "asignacion_municipios": ["id_asig", "id_sub", "municipio", "num_contrato", "num_pagos", "valor_asignado", "meta_municipal", "unidad_medida_muni"],
         "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "soporte_url", "estado", "referente_aprobador", "acta_referente", "observaciones_referente", "supervisor_aprobador", "motivo_rechazo", "chk_plan_trabajo", "chk_cronograma", "chk_personal", "chk_seg_social", "chk_inf_parcial", "chk_inf_final", "chk_polizas"],
-        "secuencia": ["id_secuencia", "id_seguimiento", "id_asig", "municipio", "num_pago_actual", "estado_hito", "fecha_hito", "operador_responsable"]
+        "secuencia": ["id_secuencia", "id_seguimiento", "id_asig", "municipio", "numero_contrato", "cp_nit_beneficiario", "numero_pagos", "primer_pago","ultimo_pago","total_pagado_oc","valor_cp","saldo_cp","porcentaje_ejecucion"]
     }
     
     for nombre, columnas in tablas.items():
