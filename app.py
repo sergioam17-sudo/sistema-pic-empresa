@@ -8,6 +8,7 @@
 #En esta versión 6 se crear un certificado o acta de conformidad de las actividades realizadas por el referente la cual debe  # generarse de forma automática donde se indique para el municipio las actividades revisadas y aprobadas con un análisis   # de lo operativo y financiero revisado
 # En la Versión 6.1 se incluye la columna de observaciones para el supervisor y e referente
 # En la versión 6.2 se incluye el seguimiento administrativo del contrato que solo se hace solo por el supervisor del contrato
+# En la versión 6.3 se incluye opción de rechazo por parte del referente al igual que el supervisor para que el municipio sudsane la novedad
 
 import streamlit as st
 import pandas as pd
@@ -1056,57 +1057,104 @@ else:
 
 
 
-# --- TABLA DE SEGUIMIENTO PARA MUNICIPIO ---
-        st.write("---")
-        st.subheader("📋 Historial de mis Reportes y Estados")
-        
-        muni_actual = st.session_state.get('muni_asignado')
-        
-        # Obtener historial filtrando con Pandas
-        df_p_muni = get_data("seguimiento_pagos")
-        df_a_muni = get_data("asignacion_municipios")
-        df_s_muni = get_data("subactividades")
-        df_m_muni = get_data("actividades_maestro")  # <-- SOLUCIÓN: Carga de la variable faltante
-        
-        if not df_p_muni.empty and not df_a_muni.empty and not df_s_muni.empty and not df_m_muni.empty:
 
-            # Asegurar que existan las columnas base en pagos antes del merge
-            columnas_requeridas = ['id_seguimiento', 'id_asig', 'num_pago_actual', 'valor_calculado', 'avance_meta', 'estado']
-            for col in columnas_requeridas:
-                if col not in df_p_muni.columns:
-                    df_p_muni[col] = "N/A"
-
-            # Ensamble de traza completa uniendo hasta la Actividad Maestro con Left Join preventivo
-            df_merge_muni = df_p_muni.merge(df_a_muni, on="id_asig", how="left")
-            df_merge_muni = df_merge_muni.merge(df_s_muni, on="id_sub", how="left")
-            df_merge_muni = df_merge_muni.merge(df_m_muni, on="id_actividad", how="left")
+        # --- TABLA DE SEGUIMIENTO Y ALERTAS PARA MUNICIPIO (CORREGIDO V6.3) ---
+            st.write("---")
+            st.subheader("📋 Historial de mis Reportes y Estados")
             
-            df_seguimiento_muni = df_merge_muni[df_merge_muni['municipio'] == muni_actual]
-
+            muni_actual = st.session_state.get('muni_asignado')
             
-            # Inyección de las columnas id_actividad y nombre_actividad
-            cols_finales = ['id_seguimiento', 'id_actividad', 'nombre_actividad', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'avance_meta', 'estado']
-            if 'acta_referente' in df_seguimiento_muni.columns:
-                cols_finales.append('acta_referente')
+            df_p_muni = get_data("seguimiento_pagos")
+            df_a_muni = get_data("asignacion_municipios")
+            df_s_muni = get_data("subactividades")
+            df_m_muni = get_data("actividades_maestro")
+            
+            if not df_p_muni.empty and not df_a_muni.empty and not df_s_muni.empty and not df_m_muni.empty:
+                # Asegurar la existencia de las columnas operativas de control en memoria
+                columnas_requeridas = ['id_seguimiento', 'id_asig', 'num_pago_actual', 'valor_calculado', 'avance_meta', 'estado', 'motivo_rechazo', 'soporte_municipio']
+                for col in columnas_requeridas:
+                    if col not in df_p_muni.columns:
+                        df_p_muni[col] = ""
+
+                # Ensamble de traza analítica completa mediante cruzamiento de llaves con Pandas
+                df_merge_muni = df_p_muni.merge(df_a_muni, on="id_asig", how="left")
+                df_merge_muni = df_merge_muni.merge(df_s_muni, on="id_sub", how="left")
+                df_merge_muni = df_merge_muni.merge(df_m_muni, on="id_actividad", how="left")
                 
-            df_seguimiento_muni = df_seguimiento_muni[[c for c in cols_finales if c in df_seguimiento_muni.columns]].copy()
-            
-            # Sobreescribir nombres de columnas para presentación profesional
-            df_seguimiento_muni.columns = [
-                'ID Seguimiento', 'ID Actividad', 'Actividad General', 'Subactividad', 
-                'Pago N°', 'Valor Calculado', 'Avance Meta', 'Estado'
-            ] + (['Acta Soporte'] if 'acta_referente' in df_seguimiento_muni.columns else [])
+                # Aislamiento exclusivo de los registros de este municipio ejecutor
+                df_muni_actual = df_merge_muni[df_merge_muni['municipio'] == muni_actual].copy()
+                
+                if not df_muni_actual.empty:
+                    # 🔴 ALERTA 1: Renderizar rechazos activos provenientes del Supervisor General
+                    df_rechazos_sup = df_muni_actual[df_muni_actual['estado'] == 'RECHAZADO']
+                    if not df_rechazos_sup.empty:
+                        st.error("⚠️ **ATENCIÓN DE SUPERVISIÓN:** El Supervisor ha devuelto reportes de este municipio. Revise las correcciones exigidas a continuación:")
+                        for _, r_rech in df_rechazos_sup.iterrows():
+                            st.warning(f"🔹 **ID Registro:** {r_rech['id_seguimiento']} | **Subactividad:** {r_rech['nombre_subactividad']} | 💬 **Motivo de Rechazo:** {r_rech['motivo_rechazo']}")
+                    
+                    # 🔴 ALERTA 2: Renderizar rechazos activos generados por el Referente Departamental Técnico
+                    df_rechazos_ref = df_muni_actual[df_muni_actual['estado'] == 'RECHAZADO_REFERENTE']
+                    if not df_rechazos_ref.empty:
+                        st.error("⚠️ **ATENCIÓN TÉCNICA PIC:** El Referente Departamental ha devuelto reportes en la fase de validación. Proceda a subsanar:")
+                        for _, r_rech_ref in df_rechazos_ref.iterrows():
+                            st.warning(f"🔸 **ID Registro:** {r_rech_ref['id_seguimiento']} | **Subactividad:** {r_rech_ref['nombre_subactividad']} | 💬 **Observación Técnica:** {r_rech_ref['motivo_rechazo']}")
+                    
+                    st.markdown("#### Matriz Histórica de Trazabilidad de Pagos")
+                    
+                    # Filtrar las columnas clave para visualización del usuario final
+                    cols_finales = ['id_seguimiento', 'id_actividad', 'nombre_actividad', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'avance_meta', 'estado']
+                    if 'acta_referente' in df_muni_actual.columns:
+                        cols_finales.append('acta_referente')
+                        
+                    df_visual_muni = df_muni_actual[[c for c in cols_finales if c in df_muni_actual.columns]].copy()
+                    df_visual_muni.columns = ['ID Seguimiento', 'ID Actividad', 'Actividad General', 'Subactividad', 'Pago N°', 'Valor Calculado', 'Avance Meta', 'Estado'] + (['Acta Soporte'] if 'acta_referente' in df_muni_actual.columns else [])
+                    
+                    st.dataframe(df_visual_muni, use_container_width=True, hide_index=True)
+                    
+                    # --- COMPONENTE INTEGRADO DE CORRECCIÓN Y REENVÍO ---
+                    with st.expander("🔄 Corregir y Reenviar Reporte Rechazado (Supervisor / Referente)"):
+                        df_muni_solo_rech = df_muni_actual[df_muni_actual['estado'].isin(['RECHAZADO', 'RECHAZADO_REFERENTE'])]
+                        
+                        if df_muni_solo_rech.empty:
+                            st.info("No se registran novedades o reportes rechazados pendientes de corrección.")
+                        else:
+                            opciones_rechazo_dict = {f"ID {row['id_seguimiento']} - {row['nombre_subactividad']} (Pago {row['num_pago_actual']})": row['id_seguimiento'] for _, row in df_muni_solo_rech.iterrows()}
+                            sel_rechazo_label = st.selectbox("Seleccione el reporte a subsanar:", list(opciones_rechazo_dict.keys()), key="sb_muni_subsanar")
+                            id_subsanar = opciones_rechazo_dict[sel_rechazo_label]
+                            
+                            fila_subsanar = df_muni_solo_rech[df_muni_solo_rech['id_seguimiento'] == id_subsanar].iloc[0]
+                            st.markdown(f"📋 **Historial de la Alerta:** {fila_subsanar['motivo_rechazo']}")
+                            
+                            with st.form("form_correccion_municipio"):
+                                nuevo_avance = st.number_input("Corregir avance de la meta física:", min_value=0.0, value=float(fila_subsanar['avance_meta']))
+                                nuevo_soporte = st.text_input("Actualizar enlace de evidencias (URL Soportes):", value=str(fila_subsanar['soporte_municipio']))
+                                
+                                if st.form_submit_button("🚀 Reenviar a Validación Técnica del Referente"):
+                                    if nuevo_avance <= 0:
+                                        st.error("El avance físico ingresado debe ser mayor a 0.")
+                                    else:
+                                        df_pagos_db = get_data("seguimiento_pagos")
+                                        
+                                        # Recalcular el valor económico proporcional según la corrección física realizada
+                                        meta_total_original = float(fila_subsanar['meta_municipal'])
+                                        valor_total_original = float(fila_subsanar['valor_asignado'])
+                                        valor_recalculado_pago = (nuevo_avance / meta_total_original) * valor_total_original if meta_total_original > 0 else 0.0
+                                        
+                                        # Actualizar el registro y resetear el estado a PENDIENTE para reiniciar el ciclo de auditoría
+                                        df_pagos_db.loc[df_pagos_db['id_seguimiento'] == id_subsanar, 'avance_meta'] = nuevo_avance
+                                        df_pagos_db.loc[df_pagos_db['id_seguimiento'] == id_subsanar, 'valor_calculado'] = valor_recalculado_pago
+                                        df_pagos_db.loc[df_pagos_db['id_seguimiento'] == id_subsanar, 'soporte_municipio'] = str(nuevo_soporte)
+                                        df_pagos_db.loc[df_pagos_db['id_seguimiento'] == id_subsanar, 'estado'] = 'PENDIENTE'
+                                        df_pagos_db.loc[df_pagos_db['id_seguimiento'] == id_subsanar, 'motivo_rechazo'] = 'Reporte corregido y reenviado por el municipio'
+                                        
+                                        if safe_update("seguimiento_pagos", df_pagos_db):
+                                            st.success("✅ Registro corregido con éxito. Ha sido enviado nuevamente al Referente Técnico.")
+                                            st.rerun()
+                else:
+                    st.info("No hay reportes realizados aún por este municipio.")
+            else:
+                st.info("No hay reportes realizados aún.")
 
-
-
-
-        else:
-            df_seguimiento_muni = pd.DataFrame()
-
-        if not df_seguimiento_muni.empty:
-            st.dataframe(df_seguimiento_muni, use_container_width=True)
-        else:
-            st.info("No hay reportes realizados aún.")
 
 
 
@@ -1154,27 +1202,38 @@ else:
                         st.dataframe(df_visual_pend, use_container_width=True, hide_index=True)
                         
                         with st.form("form_revision_referente"):
-                            id_rev = st.number_input("ID de Seguimiento a Validar (Dar OK):", min_value=1, step=1)
+                            id_rev = st.number_input("ID de Seguimiento a Validar / Rechazar:", min_value=1, step=1)
+                            decision_ref = st.radio("Dictamen de la Revisión:", ["Aprobar Validación Técnica", "Rechazar y Devolver al Municipio"])
                             acta_link = st.text_input("Enlace General al Repositorio de Evidencias / Acta (Opcional)")
-                            obs_tecnicas = st.text_area("✍️ Observaciones de la Revisión Técnica (Aparecerán en el Acta e Informes):")
+                            obs_tecnicas = st.text_area("✍️ Observaciones de la Revisión / Motivo del Rechazo (Obligatorio si rechaza):")
                             
-                            if st.form_submit_button("Confirmar Validación Técnica 🚀"):
-                                df_rev = get_data("seguimiento_pagos")
-                                columnas_texto = ['estado', 'acta_referente', 'referente_aprobador', 'observaciones_referente']
-                                for col in columnas_texto:
-                                    if col in df_rev.columns:
-                                        df_rev[col] = df_rev[col].astype(str).replace(['nan', 'None', '<NA>'], '')
+                            if st.form_submit_button("Confirmar Dictamen Técnico 🚀"):
+                                if decision_ref == "Rechazar y Devolver al Municipio" and not obs_tecnicas.strip():
+                                    st.error("❌ Debe ingresar el motivo del rechazo en el campo de observaciones.")
+                                else:
+                                    df_rev = get_data("seguimiento_pagos")
+                                    columnas_texto = ['estado', 'acta_referente', 'referente_aprobador', 'observaciones_referente', 'motivo_rechazo']
+                                    for col in columnas_texto:
+                                        if col in df_rev.columns:
+                                            df_rev[col] = df_rev[col].astype(str).replace(['nan', 'None', '<NA>'], '')
+                                        else:
+                                            df_rev[col] = ''
+                                        
+                                    if decision_ref == "Aprobar Validación Técnica":
+                                        df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'estado'] = 'REVISADO_REFERENTE'
+                                        df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'motivo_rechazo'] = 'Avalado por el referente'
                                     else:
-                                        df_rev[col] = ''
-                                    
-                                df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'estado'] = 'REVISADO_REFERENTE'
-                                df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'acta_referente'] = str(acta_link)
-                                df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'observaciones_referente'] = str(obs_tecnicas)
-                                df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'referente_aprobador'] = str(st.session_state['user'])
+                                        df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'estado'] = 'RECHAZADO_REFERENTE'
+                                        df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'motivo_rechazo'] = f"RECHAZO REFERENTE: {str(obs_tecnicas)}"
+                                        
+                                    df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'acta_referente'] = str(acta_link)
+                                    df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'observaciones_referente'] = str(obs_tecnicas)
+                                    df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'referente_aprobador'] = str(st.session_state['user'])
 
-                                if safe_update("seguimiento_pagos", df_rev):
-                                    st.success(f"✅ El reporte ID {id_rev} ha sido avalado con observaciones.")
-                                    st.rerun()
+                                    if safe_update("seguimiento_pagos", df_rev):
+                                        st.success(f"✅ Dictamen del reporte ID {id_rev} sincronizado exitosamente.")
+                                        st.rerun()
+
 
                 with tab_acta_ia:
                     st.subheader("Filtros de Consolidación para el Acta Formal")
