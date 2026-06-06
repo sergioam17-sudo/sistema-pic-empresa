@@ -2083,15 +2083,7 @@ Se recomienda coordinar comités técnicos de supervisión inmediata para mitiga
                                 ("Porcentaje de Eficiencia Física y Operativa Local", f"{porcentaje_operativo:.2f}%") 
                             ]
 
-                        else:
-                            métricas_word = [
-                                ("Presupuesto Total Estructural Asignado al Municipio", f"${muni_total_asig:,.2f}"),
-                                ("Monto Local Ejecutado y Aceptado para Pago", f"${muni_ejecutado_pago:,.2f}"),
-                                ("Monto Efectivamente Girado al Operador Local (Pagado OC)", f"${muni_pagado_efectivo:,.2f}"),
-                                ("Saldo en Reserva Líquida Contractual Local Disponible", f"${muni_saldo_reserva:,.2f}"),
-                                ("Porcentaje de Eficiencia Financiera Relativa", f"{porcentaje_ejecucion:.2f}%")
-                            ]
-
+                       
                         for m, v in métricas_word:
                             row_cells = table.add_row().cells
                             row_cells[0].text = m
