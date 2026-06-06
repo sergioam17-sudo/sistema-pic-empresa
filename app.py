@@ -1887,6 +1887,8 @@ else:
                             # Estructuración de la matriz interna de metas locales cruzada
                             # ✅ CÓDIGO CORREGIDO CON SANGRÍA DE PRODUCCIÓN EXACTA:
                             # Estructuración de la matriz interna de metas locales cruzada
+                            # ✅ CÓDIGO CORREGIDO CON SANGRÍA DE PRODUCCIÓN EXACTA:
+                            # Estructuración de la matriz interna de metas locales cruzada
                             lineas_desglose = []
                             for _, row in df_filtrado.iterrows():
                                 lineas_desglose.append(
