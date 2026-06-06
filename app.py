@@ -1962,13 +1962,15 @@ else:
                             else:
                                 raise Exception(f"Error de API externa (Código: {res.status_code})")
                                 
+                        # ✅ CÓDIGO CORREGIDO CON SANGRÍA EXACTA:
                         except Exception as e:
                             analisis_ia = f"""### EVALUACIÓN DE CONTINGENCIA: {nombre_informe_titulo}
 
 El sistema PIC registra un índice de eficiencia financiera y operativa consolidada del {porcentaje_operativo:.2f}% bajo la cobertura analizada.
-
-1. RESUMEN FINANCIERO: Los balances contables reportan un total asignado de ${(macro_total_asig if tipo_informe=='DEPARTAMENTAL' else muni_total_asig):,.2f}, logrando un presupuesto aceptado para cobro de ${macro_ejecutado_pago:,.2f} y giros efectivamente consolidados en banco de ${macro_pagado_efectivo:,.2f}. El remanente financiero en reserva disponible se sitúa en ${saldo_disponible_bolsa:,.2f}.
-2. DESEMPEÑO ADMINISTRATIVO: Se auditaron {cant_total_periodos} hitos obligatorios de control administrativo, donde la tasa de acreditación de planillas de seguridad social y entrega formal de informes presenta un cumplimiento porcentual del {(cant_segsoc_si/cant_total_periodos*100) if cant_total_periodos > 0 else 0:.1f}%. Se recomienda coordinar comités técnicos de supervisión inmediata para mitigar cuellos de botella contractuales."""
+1. RESUMEN FINANCIERO: Los balances contables reportan un total asignado de ${(macro_total_asig if tipo_informe=='DEPARTAMENTAL' else muni_total_asig):,.2f}, logrando un presupuesto aceptado para cobro de ${macro_ejecutado_pago:,.2f} y giros efectivamente consolidados en banco de ${macro_pagado_efectivo:,.2f}.
+El remanente financiero en reserva disponible se sitúa en ${(macro_reserva_disponible if tipo_informe=='DEPARTAMENTAL' else muni_saldo_reserva):,.2f}.
+2. DESEMPEÑO ADMINISTRATIVO: Se auditaron {cant_total_periodos} hitos obligatorios de control administrativo, donde la tasa de acreditación de planillas de seguridad social y entrega formal de informes presenta un cumplimiento porcentual del {(cant_segsoc_si/cant_total_periodos*100) if cant_total_periodos > 0 else 0:.1f}%.
+Se recomienda coordinar comités técnicos de supervisión inmediata para mitigar cuellos de botella contractuales."""
 
                         # 6. VISUALIZACIÓN EN PANTALLA (INTERFAZ DE USUARIO STREAMLIT)
                         st.success("📝 ¡Datos Procesados e Informe Estructurado con Éxito!")
