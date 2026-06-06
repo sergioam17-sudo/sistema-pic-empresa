@@ -1883,9 +1883,16 @@ else:
                             promedio_pago = df_filtrado['valor_calculado'].mean() if not df_filtrado.empty else 0.0 [cite: 2084]
                             
                             # Estructuración analítica de la matriz interna de metas locales cruzada
-                            lineas_desglose = [] [cite: 2085]
-                            for _, row in df_filtrado.iterrows(): [cite: 2085, 2086]
+                            # ✅ CÓDIGO CORREGIDO (Limpio y con sangría estándar de 24 y 28 espacios):
+                            # Estructuración de la matriz interna de metas locales cruzada
+                            lineas_desglose = []
+                            for _, row in df_filtrado.iterrows():
                                 lineas_desglose.append(
+                                    f"  * Actividad General Maestro ID {row['id_actividad']} ({row['nombre_actividad'][:25]}) -> Subactividad: {row['nombre_subactividad']} | Meta Teórica Subactividad: {row['meta_sub']} | Meta Local Asignada: {row['meta_municipal']} | Avance Real de Meta en Campo: {row['avance_meta']} | Porcentaje de Cumplimiento Local: {(float(row['avance_meta'])/float(row['meta_municipal'])*100 if float(row['meta_municipal'])>0 else 0):.1f}% | Ejecutado: ${row['valor_calculado']:,.2f} | Estado: {row['estado']}"
+                                )
+                            desglose_operativo_txt = "\n".join(lineas_desglose)
+
+
                                     f"  * Actividad General Maestro ID {row['id_actividad']} ({row['nombre_actividad'][:25]}) -> Subactividad: {row['nombre_subactividad']} | Meta Teórica Subactividad: {row['meta_sub']} | Meta Local Asignada: {row['meta_municipal']} | Avance Real de Meta en Campo: {row['avance_meta']} | Porcentaje de Cumplimiento Local: {(float(row['avance_meta'])/float(row['meta_municipal'])*100 if float(row['meta_municipal'])>0 else 0):.1f}% | Ejecutado: ${row['valor_calculado']:,.2f} | Estado: {row['estado']}" [cite: 2086, 2087, 2088]
                                 )
                             desglose_operativo_txt = "\n".join(lineas_desglose) [cite: 2088]
