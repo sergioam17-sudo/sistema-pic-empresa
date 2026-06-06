@@ -1860,9 +1860,9 @@ else:
                             df_filtrado = df_completo[df_completo['municipio'] == muni_filtro].copy() [cite: 2078]
                             nombre_informe_titulo = f"INFORME TECNICO ADMINISTRATIVO Y FINANCIERO - MUNICIPIO: {muni_filtro.upper()}" [cite: 2078]
                             
-                            if df_filtrado.empty: [cite: 2079]
-                                st.warning(f"⚠️ No se encontraron registros de ejecución para el municipio {muni_filtro}.") [cite: 2079]
-                                st.stop() [cite: 2079]
+                            if df_filtrado.empty: 
+                                st.warning(f"⚠️ No se encontraron registros de ejecución para el municipio {muni_filtro}.")
+                                st.stop() 
                                 
                             # Estadísticas Financieras Locales de Precisión
                             muni_total_asig = df_a_inf[df_a_inf['municipio'] == muni_filtro]['valor_asignado'].astype(float).sum() [cite: 2080]
