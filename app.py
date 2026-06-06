@@ -2073,14 +2073,14 @@ Se recomienda coordinar comités técnicos de supervisión inmediata para mitiga
                                 ("Índice de Eficiencia Física en Meta Global PIC", f"{eficiencia_fisica_global:.2f}%")
                             ]
                         else:
-                            métricas_word = [ [cite: 2146]
-                                ("Presupuesto Total Estructural Asignado al Municipio", f"${muni_total_asig:,.2f}"), [cite: 2146]
-                                ("Monto Local Ejecutado y Aceptado para Pago", f"${muni_ejecutado_pago:,.2f}"), [cite: 2146]
-                                ("Monto Efectivamente Girado al Operador Local (Pagado OC)", f"${muni_pagado_efectivo:,.2f}"), [cite: 2147]
-                                ("Saldo en Reserva Líquida Contractual Local Disponible", f"${muni_saldo_reserva:,.2f}"), [cite: 2147]
+                            métricas_word = [
+                                ("Presupuesto Total Estructural Asignado al Municipio", f"${muni_total_asig:,.2f}"), 
+                                ("Monto Local Ejecutado y Aceptado para Pago", f"${muni_ejecutado_pago:,.2f}"), 
+                                ("Monto Efectivamente Girado al Operador Local (Pagado OC)", f"${muni_pagado_efectivo:,.2f}"), 
+                                ("Saldo en Reserva Líquida Contractual Local Disponible", f"${muni_saldo_reserva:,.2f}"), 
                                 ("Sumatoria Meta Teórica de Subactividades Base", f"{muni_meta_sub_nominal:,.0f} Unidades"),
-                                ("Metas Municipales Programadas para este Contrato Local", f"{meta_programada:,.0f} Unidades"), [cite: 2147]
-                                ("Porcentaje de Eficiencia Física y Operativa Local", f"{porcentaje_operativo:.2f}%") [cite: 2148]
+                                ("Metas Municipales Programadas para este Contrato Local", f"{meta_programada:,.0f} Unidades"), 
+                                ("Porcentaje de Eficiencia Física y Operativa Local", f"{porcentaje_operativo:.2f}%") 
                             ]
 
                         else:
