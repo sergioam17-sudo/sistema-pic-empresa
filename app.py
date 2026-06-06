@@ -1811,6 +1811,7 @@ else:
 
                         # 2. BIFURCACIÓN DE INGENIERÍA DE DATOS Y MÉTRICAS SEGÚN FILTRO SELECCIONADO
                         # 2. BIFURCACIÓN DE INGENIERÍA DE DATOS Y MÉTRICAS SEGÚN FILTRO SELECCIONADO (V6.7 OPERATIVO)
+
                         if tipo_informe == "DEPARTAMENTAL":
                             df_filtrado = df_completo.copy() [cite: 2067]
                             nombre_informe_titulo = "INFORME TECNICO ADMINISTRATIVO Y FINANCIERO - CONSOLIDADO DEPARTAMENTAL" [cite: 2067]
@@ -2058,18 +2059,19 @@ Se recomienda coordinar comités técnicos de supervisión inmediata para mitiga
                         hdr_cells[0].text = 'Métrica Presupuestal y Económica Evaluada'
                         hdr_cells[1].text = 'Valor de Registro Oficial'
 
+
                         # 7.1 INYECCIÓN DE INDICADORES DE FILTRO EN TABLA WORD ASIMÉTRICA
                         if tipo_informe == "DEPARTAMENTAL":
-                            métricas_word = [ [cite: 2143]
-                                ("Techo Presupuestal Financiero Total Bolsa PIC", f"${macro_total_pic:,.2f}"), [cite: 2143]
-                                ("Presupuesto Total Comprometido y Asignado a Municipios", f"${macro_total_asig:,.2f}"), [cite: 2143]
-                                ("Presupuesto Ejecutado Aceptado para Pago", f"${macro_ejecutado_pago:,.2f}"), [cite: 2144]
-                                ("Recursos Económicos Efectivamente Pagados (Giro Bancario OC)", f"${macro_pagado_efectivo:,.2f}"), [cite: 2144]
-                                ("Saldo Libre de Reserva en Bolsa Central Departamental", f"${macro_reserva_disponible:,.2f}"), [cite: 2144]
+                            métricas_word = [
+                                ("Techo Presupuestal Financiero Total Bolsa PIC", f"${macro_total_pic:,.2f}"),
+                                ("Presupuesto Total Comprometido y Asignado a Municipios", f"${macro_total_asig:,.2f}"),
+                                ("Presupuesto Ejecutado Aceptado para Pago", f"${macro_ejecutado_pago:,.2f}"),
+                                ("Recursos Económicos Efectivamente Pagados (Giro Bancario OC)", f"${macro_pagado_efectivo:,.2f}"),
+                                ("Saldo Libre de Reserva en Bolsa Central Departamental", f"${macro_reserva_disponible:,.2f}"),
                                 ("Porcentaje de Municipios con Ejecución de Actividades", f"{tasa_cobertura_municipios:.1f}%"),
                                 ("Sumatoria Techo de la 'Meta Global' Parametrizada", f"{meta_global_pic_nominal:,.0f} Unidades"),
                                 ("Índice de Eficiencia Física en Meta Global PIC", f"{eficiencia_fisica_global:.2f}%")
-                            ] [cite: 2145]
+                            ]
                         else:
                             métricas_word = [ [cite: 2146]
                                 ("Presupuesto Total Estructural Asignado al Municipio", f"${muni_total_asig:,.2f}"), [cite: 2146]
