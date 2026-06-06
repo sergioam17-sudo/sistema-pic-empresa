@@ -1883,11 +1883,7 @@ else:
                             promedio_pago = df_filtrado['valor_calculado'].mean() if not df_filtrado.empty else 0.0 [cite: 2084]
                             
                             # Estructuración analítica de la matriz interna de metas locales cruzada
-                            # ✅ CÓDIGO CORREGIDO (Limpio y con sangría estándar de 24 y 28 espacios):
-                            # Estructuración de la matriz interna de metas locales cruzada
-                            # ✅ CÓDIGO CORREGIDO CON SANGRÍA DE PRODUCCIÓN EXACTA:
-                            # Estructuración de la matriz interna de metas locales cruzada
-                            # ✅ CÓDIGO CORREGIDO CON SANGRÍA DE PRODUCCIÓN EXACTA:
+
                             # Estructuración de la matriz interna de metas locales cruzada
                             lineas_desglose = []
                             for _, row in df_filtrado.iterrows():
