@@ -1813,15 +1813,15 @@ else:
                         # 2. BIFURCACIÓN DE INGENIERÍA DE DATOS Y MÉTRICAS SEGÚN FILTRO SELECCIONADO (V6.7 OPERATIVO)
 
                         if tipo_informe == "DEPARTAMENTAL":
-                            df_filtrado = df_completo.copy() [cite: 2067]
-                            nombre_informe_titulo = "INFORME TECNICO ADMINISTRATIVO Y FINANCIERO - CONSOLIDADO DEPARTAMENTAL" [cite: 2067]
+                            df_filtrado = df_completo.copy() 
+                            nombre_informe_titulo = "INFORME TECNICO ADMINISTRATIVO Y FINANCIERO - CONSOLIDADO DEPARTAMENTAL" 
                             
                             # Estadísticas Financieras Globales
-                            macro_total_pic = df_m_inf['valor_total_actividad'].sum() [cite: 2068]
-                            macro_total_asig = df_a_inf['valor_asignado'].astype(float).sum() [cite: 2068]
-                            macro_ejecutado_pago = df_filtrado[df_filtrado['estado'].isin(['ACEPTADA', 'REVISADO_REFERENTE'])]['valor_calculado'].sum() [cite: 2069]
-                            macro_pagado_efectivo = df_sec_clean['total_pagado_oc'].sum() [cite: 2069]
-                            macro_reserva_disponible = macro_total_pic - macro_total_asig [cite: 2069]
+                            macro_total_pic = df_m_inf['valor_total_actividad'].sum() 
+                            macro_total_asig = df_a_inf['valor_asignado'].astype(float).sum() 
+                            macro_ejecutado_pago = df_filtrado[df_filtrado['estado'].isin(['ACEPTADA', 'REVISADO_REFERENTE'])]['valor_calculado'].sum() 
+                            macro_pagado_efectivo = df_sec_clean['total_pagado_oc'].sum() 
+                            macro_reserva_disponible = macro_total_pic - macro_total_asig 
                             
                             # --- INGENIERÍA OPERATIVA DEPARTAMENTAL ADVANCED ---
                             # Conteo exacto de municipios con ejecuciones activas frente al total territorial
@@ -1833,19 +1833,19 @@ else:
                             avance_global_pic_real = df_filtrado[df_filtrado['estado'].isin(['ACEPTADA', 'REVISADO_REFERENTE'])]['avance_meta'].sum()
                             eficiencia_fisica_global = (avance_global_pic_real / meta_global_pic_nominal * 100) if meta_global_pic_nominal > 0 else 0.0
                             
-                            total_actividades_evaluadas = df_filtrado['id_seguimiento'].nunique() [cite: 2070]
-                            actividades_aceptadas = df_filtrado[df_filtrado['estado'] == 'ACEPTADA']['id_seguimiento'].nunique() [cite: 2070]
+                            total_actividades_evaluadas = df_filtrado['id_seguimiento'].nunique() 
+                            actividades_aceptadas = df_filtrado[df_filtrado['estado'] == 'ACEPTADA']['id_seguimiento'].nunique() 
                             porcentaje_operativo = eficiencia_fisica_global
-                            porcentaje_ejecucion = (macro_ejecutado_pago / macro_total_asig * 100) if macro_total_asig > 0 else 0.0 [cite: 2071]
-                            promedio_pago = df_filtrado['valor_calculado'].mean() if not df_filtrado.empty else 0.0 [cite: 2072]
+                            porcentaje_ejecucion = (macro_ejecutado_pago / macro_total_asig * 100) if macro_total_asig > 0 else 0.0 
+                            promedio_pago = df_filtrado['valor_calculado'].mean() if not df_filtrado.empty else 0.0 
                             
                             bloque_financiero_contexto = f"""
-                            - Ámbito de Análisis: Nivel Macroeconómico Departamental (Santander) [cite: 2072, 2073]
-                            - Total del Valor del Techo Global PIC: ${macro_total_pic:,.2f} [cite: 2073]
-                            - Total Asignado a los Municipios: ${macro_total_asig:,.2f} [cite: 2073]
-                            - Total Ejecutado Aceptado para Pago: ${macro_ejecutado_pago:,.2f} [cite: 2074]
-                            - Total Pagado Efectivo (Desembolso de Caja OC): ${macro_pagado_efectivo:,.2f} [cite: 2074]
-                            - Saldo Libre de Bolsa Central: ${macro_reserva_disponible:,.2f} [cite: 2074]
+                            - Ámbito de Análisis: Nivel Macroeconómico Departamental (Santander) 
+                            - Total del Valor del Techo Global PIC: ${macro_total_pic:,.2f} 
+                            - Total Asignado a los Municipios: ${macro_total_asig:,.2f} 
+                            - Total Ejecutado Aceptado para Pago: ${macro_ejecutado_pago:,.2f} 
+                            - Total Pagado Efectivo (Desembolso de Caja OC): ${macro_pagado_efectivo:,.2f} 
+                            - Saldo Libre de Bolsa Central: ${macro_reserva_disponible:,.2f} 
                             """
                             
                             bloque_operativo_contexto = f"""
@@ -1854,34 +1854,34 @@ else:
                             - Sumatoria de la Métrica 'Meta Global' PIC Parametrizada (Techo de Metas): {meta_global_pic_nominal:,.1f} unidades.
                             - Sumatoria de Avances Reales Consolidados en el Departamento: {avance_global_pic_real:,.1f} unidades.
                             - Índice General de Cumplimiento Técnico de la Meta Global PIC: {eficiencia_fisica_global:.2f}%
-                            - Total de Líneas de Operación Reportadas: {total_actividades_evaluadas} registros analizados. [cite: 2075]
+                            - Total de Líneas de Operación Reportadas: {total_actividades_evaluadas} registros analizados. 
                             """
                             
                         else:
-                            df_filtrado = df_completo[df_completo['municipio'] == muni_filtro].copy() [cite: 2078]
-                            nombre_informe_titulo = f"INFORME TECNICO ADMINISTRATIVO Y FINANCIERO - MUNICIPIO: {muni_filtro.upper()}" [cite: 2078]
+                            df_filtrado = df_completo[df_completo['municipio'] == muni_filtro].copy() 
+                            nombre_informe_titulo = f"INFORME TECNICO ADMINISTRATIVO Y FINANCIERO - MUNICIPIO: {muni_filtro.upper()}" 
                             
                             if df_filtrado.empty: 
                                 st.warning(f"⚠️ No se encontraron registros de ejecución para el municipio {muni_filtro}.")
                                 st.stop() 
                                 
                             # Estadísticas Financieras Locales de Precisión
-                            muni_total_asig = df_a_inf[df_a_inf['municipio'] == muni_filtro]['valor_asignado'].astype(float).sum() [cite: 2080]
-                            muni_ejecutado_pago = df_filtrado[df_filtrado['estado'].isin(['ACEPTADA', 'REVISADO_REFERENTE'])]['valor_calculado'].sum() [cite: 2081]
+                            muni_total_asig = df_a_inf[df_a_inf['municipio'] == muni_filtro]['valor_asignado'].astype(float).sum() 
+                            muni_ejecutado_pago = df_filtrado[df_filtrado['estado'].isin(['ACEPTADA', 'REVISADO_REFERENTE'])]['valor_calculado'].sum() 
                             
-                            df_sec_muni = df_sec_clean[df_sec_clean['municipio'] == muni_filtro] [cite: 2081]
-                            muni_pagado_efectivo = df_sec_muni['total_pagado_oc'].sum() [cite: 2082]
-                            muni_saldo_reserva = df_sec_muni['saldo_cp'].sum() [cite: 2082]
+                            df_sec_muni = df_sec_clean[df_sec_clean['municipio'] == muni_filtro] 
+                            muni_pagado_efectivo = df_sec_muni['total_pagado_oc'].sum() 
+                            muni_saldo_reserva = df_sec_muni['saldo_cp'].sum() 
                             
                             # --- INGENIERÍA OPERATIVA MUNICIPAL ADVANCED ---
                             # Análisis cruzado de metas de subactividades y ejecución real local
                             muni_meta_sub_nominal = df_filtrado['meta_sub'].astype(float).sum()
-                            meta_programada = df_filtrado['meta_municipal'].sum() [cite: 2083]
-                            meta_avanzada = df_filtrado['avance_meta'].sum() [cite: 2083]
+                            meta_programada = df_filtrado['meta_municipal'].sum() 
+                            meta_avanzada = df_filtrado['avance_meta'].sum() 
                             
-                            porcentaje_operativo = (meta_avanzada / meta_programada * 100) if meta_programada > 0 else 0.0 [cite: 2083, 2084]
-                            porcentaje_ejecucion = (muni_ejecutado_pago / muni_total_asig * 100) if muni_total_asig > 0 else 0.0 [cite: 2084]
-                            promedio_pago = df_filtrado['valor_calculado'].mean() if not df_filtrado.empty else 0.0 [cite: 2084]
+                            porcentaje_operativo = (meta_avanzada / meta_programada * 100) if meta_programada > 0 else 0.0 
+                            porcentaje_ejecucion = (muni_ejecutado_pago / muni_total_asig * 100) if muni_total_asig > 0 else 0.0 
+                            promedio_pago = df_filtrado['valor_calculado'].mean() if not df_filtrado.empty else 0.0 
                             
                             # Estructuración analítica de la matriz interna de metas locales cruzada
 
@@ -1898,70 +1898,70 @@ else:
 
                             
                             bloque_financiero_contexto = f"""
-                            - Ámbito de Análisis: Entidad Territorial Local Unifamiliar [cite: 2089]
-                            - Municipio Objeto de Auditoría: {muni_filtro} [cite: 2089]
-                            - Total Asignado para el Municipio Específico: ${muni_total_asig:,.2f} [cite: 2090]
-                            - Total Ejecutado y Aceptado para Pago del Municipio: ${muni_ejecutado_pago:,.2f} [cite: 2090]
-                            - Total Pagado Efectivo Liquidado al Operador Municipal: ${muni_pagado_efectivo:,.2f} [cite: 2090, 2091]
-                            - Saldo Contractual en Reserva Líquida Local: ${muni_saldo_reserva:,.2f} [cite: 2091]
+                            - Ámbito de Análisis: Entidad Territorial Local Unifamiliar 
+                            - Municipio Objeto de Auditoría: {muni_filtro} 
+                            - Total Asignado para el Municipio Específico: ${muni_total_asig:,.2f} 
+                            - Total Ejecutado y Aceptado para Pago del Municipio: ${muni_ejecutado_pago:,.2f} 
+                            - Total Pagado Efectivo Liquidado al Operador Municipal: ${muni_pagado_efectivo:,.2f} 
+                            - Saldo Contractual en Reserva Líquida Local: ${muni_saldo_reserva:,.2f} 
                             """
                             
                             bloque_operativo_contexto = f"""
                             - Análisis Operativo Territorial: Eje de Metas de Subactividades Municipales
                             - Sumatoria Nominal de la Meta de la Subactividad Base (Teórica): {muni_meta_sub_nominal:,.1f} unidades.
-                            - Sumatoria Nominal de Metas Municipales Programadas para este Contrato Local: {meta_programada:,.1f} unidades. [cite: 2092]
-                            - Sumatoria de Avances Físicos Consolidados y Aprobados en Campo: {meta_avanzada:,.1f} unidades. [cite: 2093]
-                            - Coeficiente de Eficiencia Física y Operativa Local: {porcentaje_operativo:.2f}% [cite: 2094]
-                            - Matriz de Desglose y Trazabilidad Operativa (Actividad Maestro vs Subactividades Municipales):\n{desglose_operativo_txt} [cite: 2094]
+                            - Sumatoria Nominal de Metas Municipales Programadas para este Contrato Local: {meta_programada:,.1f} unidades. 
+                            - Sumatoria de Avances Físicos Consolidados y Aprobados en Campo: {meta_avanzada:,.1f} unidades. 
+                            - Coeficiente de Eficiencia Física y Operativa Local: {porcentaje_operativo:.2f}% 
+                            - Matriz de Desglose y Trazabilidad Operativa (Actividad Maestro vs Subactividades Municipales):\n{desglose_operativo_txt} 
                             """
 
                         # 3. COMPILACIÓN DE INDICADORES DE TRAZABILIDAD Y RESPUESTAS ADMINISTRATIVAS
-                        cant_total_periodos = len(df_filtrado) [cite: 2094, 2095]
-                        cant_plan_si = len(df_filtrado[df_filtrado['chk_plan_trabajo'] == 'Si']) if 'chk_plan_trabajo' in df_filtrado.columns else 0 [cite: 2095]
-                        cant_crono_si = len(df_filtrado[df_filtrado['chk_cronograma'] == 'Si']) if 'chk_cronograma' in df_filtrado.columns else 0 [cite: 2095, 2096]
-                        cant_personal_si = len(df_filtrado[df_filtrado['chk_personal'] == 'Si']) if 'chk_personal' in df_filtrado.columns else 0 [cite: 2096]
-                        cant_segsoc_si = len(df_filtrado[df_filtrado['chk_seg_social'] == 'Si']) if 'chk_seg_social' in df_filtrado.columns else 0 [cite: 2096]
-                        cant_iparcial_si = len(df_filtrado[df_filtrado['chk_inf_parcial'] == 'Si']) if 'chk_inf_parcial' in df_filtrado.columns else 0 [cite: 2096, 2097]
-                        cant_ifinal_si = len(df_filtrado[df_filtrado['chk_inf_final'] == 'Si']) if 'chk_inf_final' in df_filtrado.columns else 0 [cite: 2097]
-                        cant_polizas_si = len(df_filtrado[df_filtrado['chk_polizas'] == 'Si']) if 'chk_polizas' in df_filtrado.columns else 0 [cite: 2097]
+                        cant_total_periodos = len(df_filtrado) 
+                        cant_plan_si = len(df_filtrado[df_filtrado['chk_plan_trabajo'] == 'Si']) if 'chk_plan_trabajo' in df_filtrado.columns else 0 
+                        cant_crono_si = len(df_filtrado[df_filtrado['chk_cronograma'] == 'Si']) if 'chk_cronograma' in df_filtrado.columns else 0 
+                        cant_personal_si = len(df_filtrado[df_filtrado['chk_personal'] == 'Si']) if 'chk_personal' in df_filtrado.columns else 0 
+                        cant_segsoc_si = len(df_filtrado[df_filtrado['chk_seg_social'] == 'Si']) if 'chk_seg_social' in df_filtrado.columns else 0 
+                        cant_iparcial_si = len(df_filtrado[df_filtrado['chk_inf_parcial'] == 'Si']) if 'chk_inf_parcial' in df_filtrado.columns else 0 
+                        cant_ifinal_si = len(df_filtrado[df_filtrado['chk_inf_final'] == 'Si']) if 'chk_inf_final' in df_filtrado.columns else 0 
+                        cant_polizas_si = len(df_filtrado[df_filtrado['chk_polizas'] == 'Si']) if 'chk_polizas' in df_filtrado.columns else 0 
                         
-                        lista_obs_inf = df_filtrado['observaciones_referente'].dropna().astype(str).tolist() if 'observaciones_referente' in df_filtrado.columns else [] [cite: 2098]
-                        bloque_observaciones_inf = "\n".join([f"- {o}" for o in lista_obs_inf if o.strip() != ""]) if lista_obs_inf else "Ninguna registrada." [cite: 2098]
+                        lista_obs_inf = df_filtrado['observaciones_referente'].dropna().astype(str).tolist() if 'observaciones_referente' in df_filtrado.columns else [] 
+                        bloque_observaciones_inf = "\n".join([f"- {o}" for o in lista_obs_inf if o.strip() != ""]) if lista_obs_inf else "Ninguna registrada." 
 
                         # 4. CONSTRUCCIÓN DEL PROMPT DE CONTEXTO TRIPLE DIMENSIÓN CON BIFURCACIÓN PRECISA
                         contexto_ia = f"""
-                        Actúa como un Consorcio Supervisor Experto de Alta Gerencia de Proyectos, Director Financiero de Contratación Estatal, Economista de la Salud y Científico de Datos. [cite: 2099]
-                        Escribe el cuerpo analítico formal para el documento institucional: {nombre_informe_titulo}. [cite: 2100]
+                        Actúa como un Consorcio Supervisor Experto de Alta Gerencia de Proyectos, Director Financiero de Contratación Estatal, Economista de la Salud y Científico de Datos. 
+                        Escribe el cuerpo analítico formal para el documento institucional: {nombre_informe_titulo}. 
                         
                         1. ANÁLISIS ESTADÍSTICO-FINANCIERO Y COMPORTAMIENTO DE PAGOS:
-                        {bloque_financiero_contexto} [cite: 2101]
-                        - Ticket Promedio del Registro de Desembolsos en Periodo: ${promedio_pago:,.2f} [cite: 2101]
+                        {bloque_financiero_contexto} 
+                        - Ticket Promedio del Registro de Desembolsos en Periodo: ${promedio_pago:,.2f} 
                         
                         2. CONVERGENCIA Y EVALUACIÓN OPERATIVA SANITARIA DE LAS METAS PIC:
                         {bloque_operativo_contexto}
                         
-                        3. INFORME DE EVALUACIÓN Y CUMPLIMIENTO ADMINISTRATIVO (LISTA DE VERIFICACIÓN EN LA ACEPTACIÓN): [cite: 2102, 2103]
+                        3. INFORME DE EVALUACIÓN Y CUMPLIMIENTO ADMINISTRATIVO (LISTA DE VERIFICACIÓN EN LA ACEPTACIÓN): 
                         Analiza las respuestas de control diligenciadas obligatoriamente en cada radicación de cuenta:
-                        - Entrega formal de Plan de Trabajo Concertado (Sí): {cant_plan_si} de {cant_total_periodos} registros. [cite: 2103]
-                        - Entrega de Cronograma Mensualizado de campo (Sí): {cant_crono_si} de {cant_total_periodos} cortes. [cite: 2104]
-                        - Verificación de idoneidad técnica del Personal contratado (Sí): {cant_personal_si} de {cant_total_periodos} líneas. [cite: 2105]
-                        - Acreditación y pago de planillas de Seguridad Social (Sí): {cant_segsoc_si} de {cant_total_periodos} folios. [cite: 2106]
-                        - Soporte de Informes Técnicos Parciales de Actividades (Sí): {cant_iparcial_si} de {cant_total_periodos} hitos. [cite: 2107]
-                        - Entrega formal de Informes Técnicos Finales Consolidados (Sí): {cant_ifinal_si} de {cant_total_periodos} radicados. [cite: 2108]
-                        - Vigencia de Pólizas de Cumplimiento Contractual (Sí): {cant_polizas_si} de {cant_total_periodos} amparos. [cite: 2109]
+                        - Entrega formal de Plan de Trabajo Concertado (Sí): {cant_plan_si} de {cant_total_periodos} registros. 
+                        - Entrega de Cronograma Mensualizado de campo (Sí): {cant_crono_si} de {cant_total_periodos} cortes. 
+                        - Verificación de idoneidad técnica del Personal contratado (Sí): {cant_personal_si} de {cant_total_periodos} líneas. 
+                        - Acreditación y pago de planillas de Seguridad Social (Sí): {cant_segsoc_si} de {cant_total_periodos} folios. 
+                        - Soporte de Informes Técnicos Parciales de Actividades (Sí): {cant_iparcial_si} de {cant_total_periodos} hitos. 
+                        - Entrega formal de Informes Técnicos Finales Consolidados (Sí): {cant_ifinal_si} de {cant_total_periodos} radicados. 
+                        - Vigencia de Pólizas de Cumplimiento Contractual (Sí): {cant_polizas_si} de {cant_total_periodos} amparos. 
                         
                         ALERTAS Y NOVEDADES EXPUESTAS POR LOS REFERENTES TÉCNICOS:
-                        {bloque_observaciones_inf} [cite: 2110]
+                        {bloque_observaciones_inf} 
                         
                         REQUISITOS DE REDACCIÓN COMPORTAMIENTO INSTITUCIONAL:
-                        Escribe el informe de forma fluida, rigurosa, analítica y robusta, omitiendo resúmenes simples o listas planas. [cite: 2111] Utiliza terminología de auditoría fiscal, macroeconomía médica y epidemiología de control. [cite: 2112] Explica con total claridad la correlación que existe entre el cumplimiento de la lista de chequeo administrativa, la regularidad de giros y el avance real financiero/operativo del PIC. [cite: 2113]
+                        Escribe el informe de forma fluida, rigurosa, analítica y robusta, omitiendo resúmenes simples o listas planas.  Utiliza terminología de auditoría fiscal, macroeconomía médica y epidemiología de control.  Explica con total claridad la correlación que existe entre el cumplimiento de la lista de chequeo administrativa, la regularidad de giros y el avance real financiero/operativo del PIC. 
                         Debe estructurar el desarrollo obligatorio en estas secciones:
-                        - SECCIÓN I: DIAGNÓSTICO FINANCIERO Y ANÁLISIS LONGITUDINAL DE PAGOS. [cite: 2114]
+                        - SECCIÓN I: DIAGNÓSTICO FINANCIERO Y ANÁLISIS LONGITUDINAL DE PAGOS. 
                         - SECCIÓN II: CONVERGENCIA Y EVALUACIÓN OPERATIVA SANITARIA DE LAS METAS PIC.
-                        - SECCIÓN III: AUDITORÍA Y CUMPLIMIENTO ADMINISTRATIVO LEGAL DEL CONTRATO. [cite: 2115]
-                        - SECCIÓN IV: CONCLUSIONES GENERALES DE SUPERVISIÓN. [cite: 2116]
-                        - SECCIÓN V: PLAN DE RECOMENDACIONES DE OPTIMIZACIÓN BASADAS EN EVIDENCIA (Mínimo 3 sugerencias). [cite: 2116]
-                        """ [cite: 2117]
+                        - SECCIÓN III: AUDITORÍA Y CUMPLIMIENTO ADMINISTRATIVO LEGAL DEL CONTRATO. 
+                        - SECCIÓN IV: CONCLUSIONES GENERALES DE SUPERVISIÓN. 
+                        - SECCIÓN V: PLAN DE RECOMENDACIONES DE OPTIMIZACIÓN BASADAS EN EVIDENCIA (Mínimo 3 sugerencias). 
+                        """ 
 
 
 
