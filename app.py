@@ -1895,9 +1895,6 @@ else:
                             desglose_operativo_txt = "\n".join(lineas_desglose)
 
 
-                                    f"  * Actividad General Maestro ID {row['id_actividad']} ({row['nombre_actividad'][:25]}) -> Subactividad: {row['nombre_subactividad']} | Meta Teórica Subactividad: {row['meta_sub']} | Meta Local Asignada: {row['meta_municipal']} | Avance Real de Meta en Campo: {row['avance_meta']} | Porcentaje de Cumplimiento Local: {(float(row['avance_meta'])/float(row['meta_municipal'])*100 if float(row['meta_municipal'])>0 else 0):.1f}% | Ejecutado: ${row['valor_calculado']:,.2f} | Estado: {row['estado']}" [cite: 2086, 2087, 2088]
-                                )
-                            desglose_operativo_txt = "\n".join(lineas_desglose) [cite: 2088]
                             
                             bloque_financiero_contexto = f"""
                             - Ámbito de Análisis: Entidad Territorial Local Unifamiliar [cite: 2089]
