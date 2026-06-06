@@ -10,7 +10,8 @@
 # En la versión 6.2 se incluye el seguimiento administrativo del contrato que solo se hace solo por el supervisor del contrato
 # En la versión 6.3 se incluye opción de rechazo por parte del referente al igual que el supervisor para que el municipio sudsane la novedad
 # En la versión 6.4 se incluye tabla de secuencia para verificar los pagos realizados
-# En la versión 6.5 se potencia el análisis de datos del tablero y de los informes de supervisor
+# En la versión 6.5 se potencia el análisis de datos del tablero incluyendo la información de pagos con la tabla de secuencia
+#En la versión 6.6 Se incluye en el informe Word del supervisión la información financiera de los pagos de los informes de supervisor
 
 import streamlit as st
 import pandas as pd
@@ -1748,13 +1749,12 @@ else:
                                     if safe_update("seguimiento_pagos", df_pagos_master):
                                         st.warning(f"⚠️ Reporte devuelto al municipio. Estado restablecido a PENDIENTE.")
                                         st.rerun()
-
 # ==============================================================================
-            # GENERADOR DE INFORMES DE EJECUCIÓN Y FINANCIERO (CON CONTROL DE TIEMPO E IA VIGENTE)
-            # ==============================================================================
+# GENERADOR DE INFORMES DE EJECUCIÓN: INFORME TECNICO ADMINISTRATIVO Y FINANCIERO
+# ==============================================================================
             st.write("---")
-            st.header("📄 Generador de Informes Ejecutivos y Financieros")
-            st.write("Genere reportes oficiales con análisis de datos, visualización estadística e IA descriptiva.")
+            st.header("📄 Generador de Informes Técnicos, Administrativos y Financieros")
+            st.caption("Ecosistema analítico avanzado para la supervisión integrada, auditoría presupuestal y trazabilidad de giros PIC.")
 
             # 1. Filtros de generación con extracción dinámica de municipios para evitar KeyError
             df_a_inf_init = get_data("asignacion_municipios")
@@ -1764,19 +1764,19 @@ else:
                 lista_municipios_dinamica = ["SANTANDER"]
 
             c_inf1, c_inf2 = st.columns(2)
-            tipo_informe = c_inf1.selectbox("Ámbito del Informe", ["DEPARTAMENTAL", "MUNICIPIO ESPECÍFICO"])
+            tipo_informe = c_inf1.selectbox("Ámbito del Informe Cobertura", ["DEPARTAMENTAL", "MUNICIPIO ESPECÍFICO"])
             
             muni_filtro = None
             if tipo_informe == "MUNICIPIO ESPECÍFICO":
-                muni_filtro = c_inf2.selectbox("Seleccione el Municipio", lista_municipios_dinamica)
+                muni_filtro = c_inf2.selectbox("Seleccione el Municipio a Evaluar", lista_municipios_dinamica)
 
             if 'ultimo_informe_tiempo' not in st.session_state:
                 st.session_state['ultimo_informe_tiempo'] = None
 
-            if st.button("📊 Construir e Invocación de Reporte Experto"):
+            if st.button("📊 Construir e Invocar Reporte Experto PIC"):
                 import time
                 ahora = time.time()
-                tiempo_limite = 300  # 5 minutos
+                tiempo_limite = 300  # 5 minutos de ventana de seguridad
                 
                 if st.session_state['ultimo_informe_tiempo'] is not None:
                     tiempo_transcurrido = ahora - st.session_state['ultimo_informe_tiempo']
@@ -1786,233 +1786,319 @@ else:
                         st.error(f"🛑 Control de Seguridad: Ha generado un reporte recientemente. Por favor espere {minutos_restantes} min y {segundos_restantes} seg antes de solicitar otro análisis a la IA.")
                         st.stop()
 
-                with st.spinner("Procesando datos financieros y estructurando informe técnico..."):
+                with st.spinner("Procesando balances financieros, analizando flujo de pagos y estructurando informe técnico..."):
                     
                     df_p_inf = get_data("seguimiento_pagos")
                     df_a_inf = get_data("asignacion_municipios")
                     df_s_inf = get_data("subactividades")
+                    df_m_inf = get_data("actividades_maestro")
+                    df_sec_inf = get_data("secuencia")
                     
-                    if df_p_inf.empty or df_a_inf.empty or df_s_inf.empty:
+                    if df_p_inf.empty or df_a_inf.empty or df_s_inf.empty or df_m_inf.empty:
                         st.error("Datos insuficientes en el sistema para consolidar un informe.")
                     else:
-                        df_completo = df_p_inf.merge(df_a_inf, on="id_asig").merge(df_s_inf, on="id_sub")
+                        # Ensamble matricial relacional de Pandas
+                        df_completo = df_p_inf.merge(df_a_inf, on="id_asig").merge(df_s_inf, on="id_sub").merge(df_m_inf, on="id_actividad", suffixes=('', '_maestro'))
                         
-                        if tipo_informe == "MUNICIPIO ESPECÍFICO":
-                            df_filtrado = df_completo[df_completo['municipio'] == muni_filtro]
-                            titulo_reporte = f"Informe de Supervisión Integral PIC - Municipio: {muni_filtro}"
+                        # Limpieza defensiva de tipos numéricos en secuencia de pagos
+                        if df_sec_inf is not None and not df_sec_inf.empty:
+                            df_sec_clean = df_sec_inf.copy()
+                            df_sec_clean['valor_cp'] = pd.to_numeric(df_sec_clean['valor_cp'], errors='coerce').fillna(0.0)
+                            df_sec_clean['total_pagado_oc'] = pd.to_numeric(df_sec_clean['total_pagado_oc'], errors='coerce').fillna(0.0)
+                            df_sec_clean['saldo_cp'] = pd.to_numeric(df_sec_clean['saldo_cp'], errors='coerce').fillna(0.0)
                         else:
-                            df_filtrado = df_completo
-                            titulo_reporte = "Informe de Supervisión Integral PIC - Cobertura Departamental (Santander)"
-                        
-                        if df_filtrado.empty:
-                            st.warning("No se encontraron registros de ejecución para el filtro seleccionado.")
-                        else:
-                            # 3. Cálculo de Métricas Financieras y Estadísticas Avanzadas
-                            total_asignado_inf = df_filtrado['valor_asignado'].unique().sum() if tipo_informe == "MUNICIPIO ESPECÍFICO" else df_filtrado['valor_asignado'].sum()
-                            total_ejecutado_inf = df_filtrado[df_filtrado['estado'] == 'ACEPTADA']['valor_calculado'].sum()
-                            saldo_pendiente_inf = total_asignado_inf - total_ejecutado_inf
-                            porcentaje_ejecucion = (total_ejecutado_inf / total_asignado_inf * 100) if total_asignado_inf > 0 else 0
+                            df_sec_clean = pd.DataFrame(columns=['municipio', 'valor_cp', 'total_pagado_oc', 'saldo_cp'])
+
+                        # 2. BIFURCACIÓN DE INGENIERÍA DE DATOS Y MÉTRICAS SEGÚN FILTRO SELECCIONADO
+                        if tipo_informe == "DEPARTAMENTAL":
+                            df_filtrado = df_completo.copy()
+                            nombre_informe_titulo = "INFORME TECNICO ADMINISTRATIVO Y FINANCIERO - CONSOLIDADO DEPARTAMENTAL"
                             
+                            # Estadísticas Financieras Globales
+                            macro_total_pic = df_m_inf['valor_total_actividad'].sum()
+                            macro_total_asig = df_a_inf['valor_asignado'].astype(float).sum()
+                            macro_ejecutado_pago = df_filtrado[df_filtrado['estado'].isin(['ACEPTADA', 'REVISADO_REFERENTE'])]['valor_calculado'].sum()
+                            macro_pagado_efectivo = df_sec_clean['total_pagado_oc'].sum()
+                            macro_reserva_disponible = macro_total_pic - macro_total_asig
+                            
+                            # Análisis de Cumplimiento Operativo Departamental
+                            total_actividades_evaluadas = df_filtrado['id_seguimiento'].nunique()
+                            actividades_aceptadas = df_filtrado[df_filtrado['estado'] == 'ACEPTADA']['id_seguimiento'].nunique()
+                            porcentaje_operativo = (actividades_aceptadas / total_actividades_evaluadas * 100) if total_actividades_evaluadas > 0 else 0.0
+                            porcentaje_ejecucion = (macro_ejecutado_pago / macro_total_asig * 100) if macro_total_asig > 0 else 0.0
+                            promedio_pago = df_filtrado['valor_calculado'].mean() if not df_filtrado.empty else 0.0
+                            
+                            bloque_financiero_contexto = f"""
+                            - Ámbito de Análisis: Nivel Macroeconómico Departamental (Santander)
+                            - Total del Valor del Techo Global PIC: ${macro_total_pic:,.2f}
+                            - Total Asignado a los Municipios: ${macro_total_asig:,.2f}
+                            - Total Ejecutado Aceptado para Pago: ${macro_ejecutado_pago:,.2f}
+                            - Total Pagado Efectivo (Desembolso de Caja OC): ${macro_pagado_efectivo:,.2f}
+                            - Saldo Libre de Bolsa Central: ${macro_reserva_disponible:,.2f}
+                            """
+                            
+                            bloque_operativo_contexto = f"""
+                            - Total de Líneas de Operación Reportadas: {total_actividades_evaluadas} registros.
+                            - Número de Actividades y Subactividades con Cumplimiento Efectivo (Aprobadas): {actividades_aceptadas} actividades.
+                            - Índice de Cumplimiento Físico Global del Departamento: {porcentaje_operativo:.2f}%
+                            """
+                            
+                        else:
+                            df_filtrado = df_completo[df_completo['municipio'] == muni_filtro].copy()
+                            nombre_informe_titulo = f"INFORME TECNICO ADMINISTRATIVO Y FINANCIERO - MUNICIPIO: {muni_filtro.upper()}"
+                            
+                            if df_filtrado.empty:
+                                st.warning(f"⚠️ No se encontraron registros de ejecución para el municipio {muni_filtro}.")
+                                st.stop()
+                                
+                            # Estadísticas Financieras Locales de Precisión
+                            muni_total_asig = df_a_inf[df_a_inf['municipio'] == muni_filtro]['valor_asignado'].astype(float).sum()
+                            muni_ejecutado_pago = df_filtrado[df_filtrado['estado'].isin(['ACEPTADA', 'REVISADO_REFERENTE'])]['valor_calculado'].sum()
+                            
+                            df_sec_muni = df_sec_clean[df_sec_clean['municipio'] == muni_filtro]
+                            muni_pagado_efectivo = df_sec_muni['total_pagado_oc'].sum()
+                            muni_saldo_reserva = df_sec_muni['saldo_cp'].sum()
+                            
+                            # Análisis Operativo Atómico de Cruce Actividades vs Subactividades
                             meta_programada = df_filtrado['meta_municipal'].sum()
                             meta_avanzada = df_filtrado['avance_meta'].sum()
-                            porcentaje_operativo = (meta_avanzada / meta_programada * 100) if meta_programada > 0 else 0
+                            porcentaje_operativo = (meta_avanzada / meta_programada * 100) if meta_programada > 0 else 0.0
+                            porcentaje_ejecucion = (muni_ejecutado_pago / muni_total_asig * 100) if muni_total_asig > 0 else 0.0
+                            promedio_pago = df_filtrado['valor_calculado'].mean() if not df_filtrado.empty else 0.0
                             
-                            desviacion_pagos = df_filtrado['valor_calculado'].std() if len(df_filtrado) > 1 else 0
-                            promedio_pago = df_filtrado['valor_calculado'].mean() if not df_filtrado.empty else 0
-
-                            # ---------------------------------------------------------
-                            # VISUALIZACIÓN EN PANTALLA: Indicadores y Gráficas Reales
-                            # ---------------------------------------------------------
-                            st.success("📝 ¡Datos Procesados y Consolidados con Éxito!")
+                            # Estructuración textual de la matriz interna de metas locales
+                            lineas_desglose = []
+                            for _, row in df_filtrado.iterrows():
+                                lineas_desglose.append(
+                                    f"  * Actividad General Maestro ID {row['id_actividad']} ({row['nombre_actividad'][:30]}) -> Subactividad: {row['nombre_subactividad']} | Meta Asignada: {row['meta_municipal']} | Avance Reportado: {row['avance_meta']} | Ejecutado: ${row['valor_calculado']:,.2f} | Estado: {row['estado']}"
+                                )
+                            desglose_operativo_txt = "\n".join(lineas_desglose)
                             
-                            st.subheader("📊 Cuadro de Mando del Reporte")
-                            inf_c1, inf_c2, inf_c3 = st.columns(3)
-                            # Corrección de visualización: se eliminó el formato :.1% para evitar el sobre-escalado a 1000%
-                            inf_c1.metric("Eficiencia Financiera", f"{porcentaje_ejecucion:.2f}%")
-                            inf_c2.metric("Cumplimiento Físico de Metas", f"{porcentaje_operativo:.2f}%")
-                            inf_c3.metric("Ticket Promedio Ejecución", f"${promedio_pago:,.0f}")
-
-                            # Inyección de Gráfica de Barras Estadísticas en el Dashboard Técnico
-                            st.markdown("### 📈 Comparativo Estadístico de Rendimiento Real")
-                            df_grafica_informe = pd.DataFrame({
-                                "Dimensión Analizada": ["Rendimiento Financiero (Efectivo)", "Avance Operativo (Metas Físicas)"],
-                                "Porcentaje de Cumplimiento (%)": [porcentaje_ejecucion, porcentaje_operativo]
-                            })
-                            st.bar_chart(data=df_grafica_informe, x="Dimensión Analizada", y="Porcentaje de Cumplimiento (%)")
-
-                            # Compilar todas las observaciones técnicas ingresadas por los referentes en los registros analizados
-                            lista_obs_inf = df_filtrado['observaciones_referente'].dropna().astype(str).tolist() if 'observaciones_referente' in df_filtrado.columns else []
-                            bloque_observaciones_inf = "\n".join([f"- {o}" for o in lista_obs_inf if o.strip() != ""]) if lista_obs_inf else "Ninguna registrada."
-
-                            # Extraer y compilar el estado consolidado de la lista de chequeo administrativa de los registros procesados
-                            cant_plan_si = len(df_filtrado[df_filtrado['chk_plan_trabajo'] == 'Si']) if 'chk_plan_trabajo' in df_filtrado.columns else 0
-                            cant_crono_si = len(df_filtrado[df_filtrado['chk_cronograma'] == 'Si']) if 'chk_cronograma' in df_filtrado.columns else 0
-                            cant_segsoc_si = len(df_filtrado[df_filtrado['chk_seg_social'] == 'Si']) if 'chk_seg_social' in df_filtrado.columns else 0
-                            cant_iparcial_si = len(df_filtrado[df_filtrado['chk_inf_parcial'] == 'Si']) if 'chk_inf_parcial' in df_filtrado.columns else 0
+                            bloque_financiero_contexto = f"""
+                            - Ámbito de Análisis: Entidad Territorial Local Unifamiliar
+                            - Municipio Objeto de Auditoría: {muni_filtro}
+                            - Total Asignado para el Municipio Específico: ${muni_total_asig:,.2f}
+                            - Total Ejecutado y Aceptado para Pago del Municipio: ${muni_ejecutado_pago:,.2f}
+                            - Total Pagado Efectivo Liquidado al Operador Municipal: ${muni_pagado_efectivo:,.2f}
+                            - Saldo Contractual en Reserva Líquida Local: ${muni_saldo_reserva:,.2f}
+                            """
                             
-                            # 4. Construcción del Prompt de Contexto para la IA con triple dimensión (Financiera, Operativa y Administrativa)
-                            contexto_ia = f"""
-                            Actúa como un Consorcio Experto de Alta Gerencia de Proyectos, Financiero, Salubrista Público, Epidemiólogo y Científico de Datos.
-                            Analiza los siguientes indicadores del Plan de Intervenciones Colectivas (PIC) de Santander para el ámbito: {tipo_informe} {f'({muni_filtro})' if muni_filtro else ''}.
-                            
-                            DATOS FINANCIEROS CLAVE:
-                            - Presupuesto Asignado Estructural: ${total_asignado_inf:,.2f}
-                            - Presupuesto Devengado / Ejecutado (ACEPTADO): ${total_ejecutado_inf:,.2f}
-                            - Saldo Líquido Remanente: ${saldo_pendiente_inf:,.2f}
-                            - Eficiencia Financiera Relativa: {porcentaje_ejecucion:.2f}%
-                            - Desviación Estándar de Desembolsos: ${desviacion_pagos:,.2f}
-                            - Ticket Promedio de Registro Financiero: ${promedio_pago:,.2f}
-                            
-                            DATOS OPERATIVOS DE SALUD PÚBLICA:
-                            - Meta Nominal Agregada: {meta_programada} intervenciones
-                            - Avance Físico Realizado: {meta_avanzada} intervenciones
-                            - Índice de Cumplimiento Operativo: {porcentaje_operativo:.2f}%
-                            
-                            DATOS DE TRAZABILIDAD Y SEGUIMIENTO ADMINISTRATIVO (LISTA DE CHEQUEO):
-                            - Reportes con Plan de Trabajo Validado (Sí): {cant_plan_si} de {len(df_filtrado)} registros.
-                            - Reportes con Cronograma Mensual Cumplido (Sí): {cant_crono_si} de {len(df_filtrado)} registros.
-                            - Reportes con Certificación de Seguridad Social Acreditada (Sí): {cant_segsoc_si} de {len(df_filtrado)} registros.
-                            - Reportes con Informe Técnico Parcial Soportado (Sí): {cant_iparcial_si} de {len(df_filtrado)} registros.
-                            
-                            OBSERVACIONES TÉCNICAS RECOPILADAS POR LOS REFERENTES:
-                            {bloque_observaciones_inf}
-                            
-                            Escribe un informe corporativo riguroso, técnico y analítico.
-                            Debe incluir de forma obligatoria un acápite exclusivo de 'EVALUACIÓN Y CUMPLIMIENTO ADMINISTRATIVO', acoplado de manera sinérgica al balance financiero y operativo tradicional. Use lenguaje de auditoría médica, administrativa y epidemiológica.
-
-
-
-                            
-                            Escribe un informe corporativo riguroso, técnico y analítico. Debe incluir de forma obligatoria las siguientes secciones detalladas con un lenguaje de auditoría médica y epidemiológica:
-                            1. Resumen Ejecutivo y Diagnóstico de Situación actual.
-                            2. Análisis Estadístico-Financiero y de Desviaciones del Gasto (Explicar volatilidad o estancamiento del presupuesto).
-                            3. Evaluación Operativa y Epidemiológica (Impacto real de las metas de salud en la población objeto).
-                            4. Conclusiones Clínico-Administrativas.
-                            5. Recomendaciones de Optimización de Procesos Basadas en Evidencia (Mínimo 3 estrategias viables).
+                            bloque_operativo_contexto = f"""
+                            - Sumatoria Nominal de Metas Municipales Programadas: {meta_programada} unidades.
+                            - Sumatoria de Avances Físicos Consolidados en Campo: {meta_avanzada} unidades.
+                            - Índice de Eficiencia Física Local: {porcentaje_operativo:.2f}%
+                            - Matriz de Desglose y Trazabilidad Operativa (Actividad Maestro vs Subactividades Municipales):\n{desglose_operativo_txt}
                             """
 
-                            # 5. Intervención de la IA (URL del Endpoint REST Oficial Corregida)
-                            try:
-                                import requests
-                                import json
+                        # 3. COMPILACIÓN DE INDICADORES DE TRAZABILIDAD Y RESPUESTAS ADMINISTRATIVAS
+                        cant_total_periodos = len(df_filtrado)
+                        cant_plan_si = len(df_filtrado[df_filtrado['chk_plan_trabajo'] == 'Si']) if 'chk_plan_trabajo' in df_filtrado.columns else 0
+                        cant_crono_si = len(df_filtrado[df_filtrado['chk_cronograma'] == 'Si']) if 'chk_cronograma' in df_filtrado.columns else 0
+                        cant_personal_si = len(df_filtrado[df_filtrado['chk_personal'] == 'Si']) if 'chk_personal' in df_filtrado.columns else 0
+                        cant_segsoc_si = len(df_filtrado[df_filtrado['chk_seg_social'] == 'Si']) if 'chk_seg_social' in df_filtrado.columns else 0
+                        cant_iparcial_si = len(df_filtrado[df_filtrado['chk_inf_parcial'] == 'Si']) if 'chk_inf_parcial' in df_filtrado.columns else 0
+                        cant_ifinal_si = len(df_filtrado[df_filtrado['chk_inf_final'] == 'Si']) if 'chk_inf_final' in df_filtrado.columns else 0
+                        cant_polizas_si = len(df_filtrado[df_filtrado['chk_polizas'] == 'Si']) if 'chk_polizas' in df_filtrado.columns else 0
+                        
+                        lista_obs_inf = df_filtrado['observaciones_referente'].dropna().astype(str).tolist() if 'observaciones_referente' in df_filtrado.columns else []
+                        bloque_observaciones_inf = "\n".join([f"- {o}" for o in lista_obs_inf if o.strip() != ""]) if lista_obs_inf else "Ninguna registrada."
 
-                                api_key = st.secrets["GEMINI_API_KEY"]
-                                # Se actualiza a la ruta de producción v1beta válida para llamadas sin SDK jerárquico
-                                url_api = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-                                
-                                headers = {"Content-Type": "application/json"}
-                                payload = {
-                                    "contents": [{
-                                        "parts": [{"text": contexto_ia}]
-                                    }]
-                                }
+                        # 4. CONSTRUCCIÓN DEL PROMPT DE CONTEXTO TRIPLE DIMENSIÓN CON BIFURCACIÓN PRECISA
+                        contexto_ia = f"""
+                        Actúa como un Consorcio Supervisor Experto de Alta Gerencia de Proyectos, Director Financiero de Contratación Estatal, Economista de la Salud y Científico de Datos.
+                        Escribe el cuerpo analítico formal para el documento institucional: {nombre_informe_titulo}.
+                        
+                        1. ANÁLISIS ESTADÍSTICO-FINANCIERO Y COMPORTAMIENTO DE PAGOS:
+                        {bloque_financiero_contexto}
+                        - Ticket Promedio del Registro de Desembolsos en Periodo: ${promedio_pago:,.2f}
+                        
+                        2. EVALUACIÓN OPERATIVA Y EPIDEMIOLÓGICA DE METAS:
+                        {bloque_operativo_contexto}
+                        
+                        3. INFORME DE EVALUACIÓN Y CUMPLIMIENTO ADMINISTRATIVO (LISTA DE VERIFICACIÓN EN LA ACEPTACIÓN):
+                        Analiza las respuestas de control diligenciadas obligatoriamente en cada radicación de cuenta:
+                        - Entrega formal de Plan de Trabajo Concertado (Sí): {cant_plan_si} de {cant_total_periodos} registros.
+                        - Entrega de Cronograma Mensualizado de campo (Sí): {cant_crono_si} de {cant_total_periodos} cortes.
+                        - Verificación de idoneidad técnica del Personal contratado (Sí): {cant_personal_si} de {cant_total_periodos} líneas.
+                        - Acreditación y pago de planillas de Seguridad Social (Sí): {cant_segsoc_si} de {cant_total_periodos} folios.
+                        - Soporte de Informes Técnicos Parciales de Actividades (Sí): {cant_iparcial_si} de {cant_total_periodos} hitos.
+                        - Entrega formal de Informes Técnicos Finales Consolidados (Sí): {cant_ifinal_si} de {cant_total_periodos} radicados.
+                        - Vigencia de Pólizas de Cumplimiento Contractual (Sí): {cant_polizas_si} de {cant_total_periodos} amparos.
+                        
+                        ALERTAS Y NOVEDADES EXPUESTAS POR LOS REFERENTES TÉCNICOS:
+                        {bloque_observaciones_inf}
+                        
+                        REQUISITOS DE REDACCIÓN COMPORTAMIENTO INSTITUCIONAL:
+                        Escribe el informe de forma fluida, rigurosa, analítica y robusta, omitiendo resúmenes simples. Utiliza terminología de auditoría fiscal, macroeconomía médica y epidemiología de control. Explica con total claridad la correlación que existe entre el cumplimiento de la lista de chequeo administrativa y el avance real financiero/operativo del PIC.
+                        Debe estructurar el desarrollo obligatorio en estas secciones:
+                        - SECCIÓN I: DIAGNÓSTICO FINANCIERO Y ANÁLISIS LONGITUDINAL DE PAGOS.
+                        - SECCIÓN II: EVALUACIÓN OPERATIVA SANITARIA Y CONVERGENCIA DE METAS.
+                        - SECCIÓN III: AUDITORÍA Y CUMPLIMIENTO ADMINISTRATIVO LEGAL DEL CONTRATO.
+                        - SECCIÓN IV: CONCLUSIONES GENERALES DE SUPERVISIÓN.
+                        - SECCIÓN V: PLAN DE RECOMENDACIONES DE OPTIMIZACIÓN BASADAS EN EVIDENCIA (Mínimo 3 sugerencias).
+                        """
 
-                                res = requests.post(url_api, headers=headers, data=json.dumps(payload))
-                                
-                                if res.status_code == 200:
-                                    datos_json = res.json()
-                                    analisis_ia = datos_json['candidates'][0]['content']['parts'][0]['text']
-                                    st.session_state['ultimo_informe_tiempo'] = ahora
-                                else:
-                                    raise Exception(f"Error de API externa (Código: {res.status_code})")
-                                
-                            except Exception as e:
-                                # Narrativa experta de contingencia basada en tus datos en caso de caídas de red externas
-                                analisis_ia = f"ANÁLISIS DE SUPERVISIÓN AUTOMATIZADO PIC:\n\nEl proyecto PIC registra una eficiencia financiera consolidada del {porcentaje_ejecucion:.2f}% frente a un cumplimiento físico-operativo de metas en campo del {porcentaje_operativo:.2f}%. Se evidencia una desviación estándar de desembolsos monetarios de ${desviacion_pagos:,.2f} con un saldo pendiente líquido disponible de ${saldo_pendiente_inf:,.2f}. Se sugiere formalizar una mesa técnica de auditoría con los referentes del área para calibrar la velocidad de ejecución técnica operativa con las metas financieras vigentes de la vigencia contractual."
+                        # 5. INTERVENCIÓN DIRECTA DEL ENDPOINT REST DE INTELIGENCIA ARTIFICIAL
+                        try:
+                            import requests
+                            import json
 
-                            st.markdown("### 🤖 Dictamen Analítico Generado por IA")
-                            st.markdown(analisis_ia)
-
-                            # 7. Generación del Documento Word (.DOCX)
-                            from docx import Document
-                            from docx.shared import Inches, Pt
-                            import io
-
-                            doc = Document()
+                            api_key = st.secrets["GEMINI_API_KEY"]
+                            url_api = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
                             
-                            for section in doc.sections:
-                                section.top_margin = Inches(1)
-                                section.bottom_margin = Inches(1)
-                                section.left_margin = Inches(1)
-                                section.right_margin = Inches(1)
+                            headers = {"Content-Type": "application/json"}
+                            payload = {
+                                "contents": [{
+                                    "parts": [{"text": contexto_ia}]
+                                }]
+                            }
 
-                            title_p = doc.add_paragraph()
-                            title_run = title_p.add_run(titulo_reporte.upper())
-                            title_run.bold = True
-                            title_run.font.size = Pt(16)
-                            title_run.font.name = 'Arial'
-                            title_p.alignment = 1
+                            res = requests.post(url_api, headers=headers, data=json.dumps(payload))
+                            
+                            if res.status_code == 200:
+                                datos_json = res.json()
+                                analisis_ia = datos_json['candidates'][0]['content']['parts'][0]['text']
+                                st.session_state['ultimo_informe_tiempo'] = ahora
+                            else:
+                                raise Exception(f"Error de API externa (Código: {res.status_code})")
+                                
+                        except Exception as e:
+                            analisis_ia = f"""### EVALUACIÓN DE CONTINGENCIA: {nombre_informe_titulo}
 
-                            doc.add_paragraph(f"Fecha de Emisión Automatizada: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
-                            doc.add_paragraph(f"Emitido por: {st.session_state['user']} (Rol: {st.session_state['rol']})")
-                            doc.add_paragraph("------------------------------------------------------------------------------------------------------------------------")
+El sistema PIC registra un índice de eficiencia financiera y operativa consolidada del {porcentaje_operativo:.2f}% bajo la cobertura analizada.
 
-                            doc.add_heading('1. Matriz de Indicadores Cuantitativos', level=2)
-                            table = doc.add_table(rows=1, cols=2)
-                            table.style = 'Light Shading Accent 1'
-                            hdr_cells = table.rows[0].cells
-                            hdr_cells[0].text = 'Métrica Evaluada'
-                            hdr_cells[1].text = 'Valor Registrado'
+1. RESUMEN FINANCIERO: Los balances contables reportan un total asignado de ${(macro_total_asig if tipo_informe=='DEPARTAMENTAL' else muni_total_asig):,.2f}, logrando un presupuesto aceptado para cobro de ${macro_ejecutado_pago:,.2f} y giros efectivamente consolidados en banco de ${macro_pagado_efectivo:,.2f}. El remanente financiero en reserva disponible se sitúa en ${saldo_disponible_bolsa:,.2f}.
+2. DESEMPEÑO ADMINISTRATIVO: Se auditaron {cant_total_periodos} hitos obligatorios de control administrativo, donde la tasa de acreditación de planillas de seguridad social y entrega formal de informes presenta un cumplimiento porcentual del {(cant_segsoc_si/cant_total_periodos*100) if cant_total_periodos > 0 else 0:.1f}%. Se recomienda coordinar comités técnicos de supervisión inmediata para mitigar cuellos de botella contractuales."""
 
-                            métricas = [
-                                ("Presupuesto Total Asignado", f"${total_asignado_inf:,.2f}"),
-                                ("Presupuesto Aceptado/Ejecutado", f"${total_ejecutado_inf:,.2f}"),
-                                ("Saldo Líquido Disponible", f"${saldo_pendiente_inf:,.2f}"),
-                                ("Porcentaje de Ejecución Financiera", f"{porcentaje_ejecucion:.2f}%"),
-                                ("Meta Nominal Municipal", f"{meta_programada} Unidades"),
-                                ("Avance Físico Registrado", f"{meta_avanzada} Unidades"),
-                                ("Porcentaje de Cumplimiento Físico", f"{porcentaje_operativo:.2f}%"),
-                                ("Desviación Estándar Presupuestal", f"${desviacion_pagos:,.2f}")
+                        # 6. VISUALIZACIÓN EN PANTALLA (INTERFAZ DE USUARIO STREAMLIT)
+                        st.success("📝 ¡Datos Procesados e Informe Estructurado con Éxito!")
+                        
+                        st.subheader("📊 Cuadro de Mando del Reporte Oficial")
+                        inf_c1, inf_c2, inf_c3, inf_c4 = st.columns(4)
+                        inf_c1.metric("Eficiencia Financiera", f"{porcentaje_ejecucion:.2f}%")
+                        inf_c2.metric("Cumplimiento Operativo", f"{porcentaje_operativo:.2f}%")
+                        inf_c3.metric("Ticket Promedio Ejecución", f"${promedio_pago:,.0f}")
+                        inf_c4.metric("Registros Auditados", f"{cant_total_periodos} Hitos")
+
+                        st.markdown("### 📈 Comparativo Estadístico de Rendimiento Real")
+                        df_grafica_informe = pd.DataFrame({
+                            "Dimensión Analizada": ["Rendimiento Financiero (Efectivo)", "Avance Operativo (Metas Físicas)"],
+                            "Porcentaje de Cumplimiento (%)": [porcentaje_ejecucion, porcentaje_operativo]
+                        })
+                        st.bar_chart(data=df_grafica_informe, x="Dimensión Analizada", y="Porcentaje de Cumplimiento (%)")
+
+                        st.markdown("### 🤖 Dictamen Analítico Avanzado Generado por IA")
+                        st.markdown(analisis_ia)
+
+                        # ==============================================================================
+                        # 7. GENERACIÓN DEL DOCUMENTO WORD FORMAL (.DOCX) - INFORME TECNICO ADMINISTRATIVO Y FINANCIERO
+                        # ==============================================================================
+                        from docx import Document
+                        from docx.shared import Inches, Pt
+                        import io
+
+                        doc = Document()
+                        
+                        for section in doc.sections:
+                            section.top_margin = Inches(1)
+                            section.bottom_margin = Inches(1)
+                            section.left_margin = Inches(1)
+                            section.right_margin = Inches(1)
+
+                        title_p = doc.add_paragraph()
+                        title_run = title_p.add_run("INFORME TECNICO ADMINISTRATIVO Y FINANCIERO")
+                        title_run.bold = True
+                        title_run.font.size = Pt(14)
+                        title_run.font.name = 'Arial'
+                        title_p.alignment = 1
+
+                        doc.add_paragraph(f"Ámbito de Aplicación de Cobertura: {tipo_informe}")
+                        if tipo_informe == "MUNICIPIO ESPECÍFICO":
+                            doc.add_paragraph(f"Entidad Territorial Fiscalizada: {muni_filtro}")
+                        doc.add_paragraph(f"Fecha de Emisión Automatizada: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
+                        doc.add_paragraph(f"Emitido por Profesional Supervisor: {st.session_state['user']}")
+                        doc.add_paragraph("------------------------------------------------------------------------------------------------------------------------")
+
+                        # TABLA DE INDICADORES FINANCIEROS DINÁMICOS
+                        doc.add_heading('1. Matriz de Comportamiento Financiero y Flujo de Pagos', level=2)
+                        table = doc.add_table(rows=1, cols=2)
+                        table.style = 'Light Shading Accent 1'
+                        hdr_cells = table.rows[0].cells
+                        hdr_cells[0].text = 'Métrica Presupuestal y Económica Evaluada'
+                        hdr_cells[1].text = 'Valor de Registro Oficial'
+
+                        if tipo_informe == "DEPARTAMENTAL":
+                            métricas_word = [
+                                ("Techo Presupuestal Financiero Total Bolsa PIC", f"${macro_total_pic:,.2f}"),
+                                ("Presupuesto Total Comprometido y Asignado a Municipios", f"${macro_total_asig:,.2f}"),
+                                ("Presupuesto Ejecutado Aceptado para Pago", f"${macro_ejecutado_pago:,.2f}"),
+                                ("Recursos Económicos Efectivamente Pagados (Giro Bancario OC)", f"${macro_pagado_efectivo:,.2f}"),
+                                ("Saldo Libre de Reserva en Bolsa Central Departamental", f"${macro_reserva_disponible:,.2f}"),
+                                ("Porcentaje de Eficiencia Financiera Relativa", f"{porcentaje_ejecucion:.2f}%")
+                            ]
+                        else:
+                            métricas_word = [
+                                ("Presupuesto Total Estructural Asignado al Municipio", f"${muni_total_asig:,.2f}"),
+                                ("Monto Local Ejecutado y Aceptado para Pago", f"${muni_ejecutado_pago:,.2f}"),
+                                ("Monto Efectivamente Girado al Operador Local (Pagado OC)", f"${muni_pagado_efectivo:,.2f}"),
+                                ("Saldo en Reserva Líquida Contractual Local Disponible", f"${muni_saldo_reserva:,.2f}"),
+                                ("Porcentaje de Eficiencia Financiera Relativa", f"{porcentaje_ejecucion:.2f}%")
                             ]
 
-                            for m, v in métricas:
-                                row_cells = table.add_row().cells
-                                row_cells[0].text = m
-                                row_cells[1].text = v
+                        for m, v in métricas_word:
+                            row_cells = table.add_row().cells
+                            row_cells[0].text = m
+                            row_cells[1].text = v
 
-                            doc.add_paragraph("\n")
-                            
-                            # --- NUEVA INYECCIÓN: TABLA DE SEGUIMIENTO ADMINISTRATIVO NATIVA ---
-                            doc.add_heading('2. Matriz de Cumplimiento y Trazabilidad Administrativa', level=2)
-                            table_adm = doc.add_table(rows=1, cols=2)
-                            table_adm.style = 'Light Shading Accent 2'
-                            hdr_adm_cells = table_adm.rows[0].cells
-                            hdr_adm_cells[0].text = 'Criterio Administrativo Evaluado por Supervisión'
-                            hdr_adm_cells[1].text = 'Estado Consolidado (Frecuencia / Cumplimiento)'
-                            
-                            items_admin = [
-                                ("Entrega formal de Plan de Trabajo Concertado", f"{cant_plan_si} Registros con Aprobación (Si)"),
-                                ("Entrega y cumplimiento de Cronograma Mensualizado", f"{cant_crono_si} Registros con Aprobación (Si)"),
-                                ("Verificación y Pago de Planillas de Seguridad Social", f"{cant_segsoc_si} Registros Soportados (Si)"),
-                                ("Radicación de Informes Técnicos Parciales de Soporte", f"{cant_iparcial_si} Registros Consolidados (Si)")
-                            ]
-                            
-                            for crit, est in items_admin:
-                                row_adm = table_adm.add_row().cells
-                                row_adm[0].text = crit
-                                row_adm[1].text = est
-                                
-                            doc.add_paragraph("\n")
-                            
-                            doc.add_heading('3. Cuerpo Analítico, Conclusiones y Recomendaciones de Gestión (IA)', level=2)
+                        doc.add_paragraph("\n")
+                        
+                        # TABLA DE SEGUIMIENTO ADMINISTRATIVO (RESPUESTAS DE ACEPTACIÓN)
+                        doc.add_heading('2. Matriz de Cumplimiento Técnico, Trazabilidad y Control Administrativo', level=2)
+                        table_adm = doc.add_table(rows=1, cols=3)
+                        table_adm.style = 'Light Shading Accent 2'
+                        hdr_adm_cells = table_adm.rows[0].cells
+                        hdr_adm_cells[0].text = 'Criterio Administrativo Diligenciado en la Aceptación'
+                        hdr_adm_cells[1].text = 'Casos Verificados (Sí)'
+                        hdr_adm_cells[2].text = 'Efectividad (%)'
+                        
+                        items_admin_word = [
+                            ("Radicación formal de Plan de Trabajo Concertado", f"{cant_plan_si} de {cant_total_periodos} registros", f"{(cant_plan_si / cant_total_periodos * 100) if cant_total_periodos > 0 else 0:.1f}%"),
+                            ("Entrega y cumplimiento de Cronograma Mensualizado", f"{cant_crono_si} de {cant_total_periodos} registros", f"{(cant_crono_si / cant_total_periodos * 100) if cant_total_periodos > 0 else 0:.1f}%"),
+                            ("Validación de idoneidad y perfiles del Personal", f"{cant_personal_si} de {cant_total_periodos} registros", f"{(cant_personal_si / cant_total_periodos * 100) if cant_total_periodos > 0 else 0:.1f}%"),
+                            ("Verificación y pago de planillas de Seguridad Social", f"{cant_segsoc_si} de {cant_total_periodos} registros", f"{(cant_segsoc_si / cant_total_periodos * 100) if cant_total_periodos > 0 else 0:.1f}%"),
+                            ("Radicación de Informes Técnicos Parciales de Soporte", f"{cant_iparcial_si} de {cant_total_periodos} registros", f"{(cant_iparcial_si / cant_total_periodos * 100) if cant_total_periodos > 0 else 0:.1f}%"),
+                            ("Radicación formal de Informes Técnicos Finales", f"{cant_ifinal_si} de {cant_total_periodos} registros", f"{(cant_ifinal_si / cant_total_periodos * 100) if cant_total_periodos > 0 else 0:.1f}%"),
+                            ("Vigencia de Amparos de Pólizas de Cumplimiento", f"{cant_polizas_si} de {cant_total_periodos} registros", f"{(cant_polizas_si / cant_total_periodos * 100) if cant_total_periodos > 0 else 0:.1f}%")
+                        ]
+                        
+                        for crit, est, porc_t in items_admin_word:
+                            row_adm = table_adm.add_row().cells
+                            row_adm[0].text = crit
+                            row_adm[1].text = est
+                            row_adm[2].text = porc_t
+                        
+                        doc.add_paragraph("\n")
+                        
+                        # INYECCIÓN DEL ANÁLISIS ESTRATÉGICO INTEGRAL GENERADO CON LA IA
+                        doc.add_heading('3. Diagnóstico de Situación, Conclusiones y Recomendaciones Basadas en Evidencia', level=2)
+                        doc.add_paragraph(analisis_ia)
 
+                        doc.add_paragraph("\n\n\n________________________________________________________")
+                        doc.add_paragraph(f"Firma de Aval y Cierre Legal de Supervisión del Contrato\nPlan de Intervenciones Colectivas Departamental (Santander)")
 
+                        bio = io.BytesIO()
+                        doc.save(bio)
+                        bio.seek(0)
 
+                        st.download_button(
+                            label="📥 Descargar INFORME TECNICO ADMINISTRATIVO Y FINANCIERO Oficial (.docx)",
+                            data=bio,
+                            file_name=f"INFORME_TECNICO_ADMINISTRATIVO_Y_FINANCIERO_PIC_{tipo_informe}_{pd.Timestamp.now().strftime('%Y%m%d')}.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            key="btn_download_word_v66_oficial"
+                        )
+# ==============================================================================
 
-
-                            doc.add_paragraph(analisis_ia)
-
-                            bio = io.BytesIO()
-                            doc.save(bio)
-                            bio.seek(0)
-
-                            st.download_button(
-                                label="📥 Descargar Informe Oficial en Word (.docx)",
-                                data=bio,
-                                file_name=f"Informe_PIC_{tipo_informe.replace(' ', '_')}_{pd.Timestamp.now().strftime('%Y%md')}.docx",
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                            )
-            # ==============================================================================
 
 # --- CONSOLIDADO GLOBAL DE PAGOS (VISTA DEPARTAMENTO) ---
         st.write("---")
