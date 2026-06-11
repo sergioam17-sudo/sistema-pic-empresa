@@ -2028,6 +2028,7 @@ else:
                                 raise Exception(f"Error de API externa (Código: {res.status_code})")
                                 
                         # ✅ CÓDIGO CORREGIDO CON SANGRÍA EXACTA:
+                        # Originalmente defectuoso por variables financieras estáticas en la vista local:
                         except Exception as e:
                             analisis_ia = f"""### EVALUACIÓN DE CONTINGENCIA: {nombre_informe_titulo}
 
