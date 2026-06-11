@@ -110,24 +110,36 @@ def get_data_cached(nombre_hoja):
     return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja)
 
 # --- CÓDIGO CORREGIDO Y OPTIMIZADO ---
+# --- CÓDIGO CORREGIDO Y OPTIMIZADO CON BACKOFF EXPONENCIAL ---
 def get_data(nombre_hoja, forzar=False):
     if forzar:
-        # Si se acaba de guardar algo, limpiamos la caché y leemos directo
+        # Si se acaba de guardar algo, limpiamos la caché y leemos directo con reintentos seguros
         st.cache_data.clear()
-        try:
-            return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl=0)
-        except Exception:
-            time.sleep(2)
-            return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl=0)
+        for intento in range(3):
+            try:
+                return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl=0)
+            except Exception:
+                time.sleep((intento + 1) * 3)  # Espera progresiva de 3s, 6s...
+        # Último recurso por si falla el bucle
+        return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl=0)
     else:
-        # Uso de la memoria local para consultas masivas
+        # Uso optimizado de la memoria local para consultas masivas
         try:
             return get_data_cached(nombre_hoja)
         except Exception as e:
-            st.error(f"⚠️ Error de conexión en '{nombre_hoja}'. Reintentando lectura directa...")
-            time.sleep(2)
+            # Captura defensiva si la caché falla o expira en alta concurrencia
+            st.warning(f"⏳ Alerta de tráfico en '{nombre_hoja}'. Mitigando congestión con Google Sheets...")
+            
+            # Algoritmo de mitigación por reintentos progresivos ante APIError
+            for intento in range(3):
+                try:
+                    time.sleep((intento + 1) * 4)  # Pausa de seguridad (4s, 8s, 12s) para liberar cuota de Google
+                    return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl=0)
+                except Exception:
+                    continue
+            
+            # Intento final de recuperación crítica
             return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl=0)
-
 
 
 
