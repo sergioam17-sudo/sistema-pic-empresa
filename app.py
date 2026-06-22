@@ -12,6 +12,7 @@
 # En la versión 6.4 se incluye tabla de secuencia para verificar los pagos realizados
 # En la versión 6.5 se potencia el análisis de datos del tablero incluyendo la información de pagos con la tabla de secuencia
 #En la versión 6.6 Se incluye en el informe Word del supervisión la información financiera de los pagos de los informes de supervisor
+#En la versión 6.7 se incluye un filtro para el referente que le permita filtar las actividades a realizar por municipio y por actividad
 
 import streamlit as st
 import pandas as pd
@@ -1411,6 +1412,7 @@ else:
 
                 with tab_gestion:
                     st.subheader("Reportes Municipales Pendientes de Revisión")
+                
                     if not df_merge_ref.empty:
                         df_pendientes = df_merge_ref[df_merge_ref['estado'] == 'PENDIENTE'].copy()
                     else:
@@ -1419,13 +1421,50 @@ else:
                     if df_pendientes.empty:
                         st.info("No se registran reportes municipales en estado PENDIENTE.")
                     else:
-                        df_visual_pend = df_pendientes[['id_seguimiento', 'municipio', 'num_contrato', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'soporte_municipio']].copy()
-                        df_visual_pend.columns = ['ID Seguimiento', 'Municipio', 'Contrato', 'Subactividad', 'Pago N°', 'Valor a Validar', 'URL Soporte']
-                        st.dataframe(df_visual_pend, use_container_width=True, hide_index=True)
+                        # 🎛️ INCLUSIÓN DE FILTROS EN CASCADA EN MEMORIA LÓGICA
+                        st.markdown("##### 🔍 Filtros de Auditoría Técnica")
+                        col_f1, col_f2 = st.columns(2)
                         
-                        with st.form("form_revision_referente"):
-                            id_rev = st.number_input("ID de Seguimiento a Validar / Rechazar:", min_value=1, step=1)
-                            decision_ref = st.radio("Dictamen de la Revisión:", ["Aprobar Validación Técnica", "Rechazar y Devolver al Municipio"])
+                        # Filtro por Municipio
+                        lista_muni_pend = ["VER TODOS"] + sorted(df_pendientes['municipio'].dropna().unique().tolist())
+                        sel_muni_ref = col_f1.selectbox("📍 Filtrar por Municipio:", lista_muni_pend, key="ref_filtro_muni")
+                        
+                        df_filtrado_ref = df_pendientes.copy()
+                        if sel_muni_ref != "VER TODOS":
+                            df_filtrado_ref = df_filtrado_ref[df_filtrado_ref['municipio'] == sel_muni_ref]
+                        
+                        # Filtro por Actividad General
+                        lista_act_pend = ["VER TODAS"] + sorted(df_filtrado_ref['nombre_actividad'].dropna().unique().tolist())
+                        sel_act_ref = col_f2.selectbox("🩺 Filtrar por Actividad General:", lista_act_pend, key="ref_filtro_act")
+                        
+                        if sel_act_ref != "VER TODAS":
+                            df_filtrado_ref = df_filtrado_ref[df_filtrado_ref['nombre_actividad'] == sel_act_ref]
+                        
+                        st.markdown("---")
+
+                        if df_filtrado_ref.empty:
+                            st.warning("⚠️ No existen reportes pendientes que coincidan con la combinación de filtros seleccionada.")
+                        else:
+                            # Renderizado de la matriz de datos filtrada
+                            df_visual_pend = df_filtrado_ref[['id_seguimiento', 'municipio', 'num_contrato', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'soporte_municipio']].copy()
+                            df_visual_pend.columns = ['ID Seguimiento', 'Municipio', 'Contrato', 'Subactividad', 'Pago N°', 'Valor a Validar', 'URL Soporte']
+                            st.dataframe(df_visual_pend, use_container_width=True, hide_index=True)
+                            
+                            with st.form("form_revision_referente"):
+                                # Extracción e indexación segura de IDs pertenecientes al pool filtrado
+                                ids_validos_pool = df_filtrado_ref['id_seguimiento'].tolist()
+                                min_id_val = int(min(ids_validos_pool)) if ids_validos_pool else 1
+                                max_id_val = int(max(ids_validos_pool)) if ids_validos_pool else 1
+                                
+                                id_rev = st.number_input(
+                                    "ID de Seguimiento a Validar / Rechazar:", 
+                                    min_value=min_id_val, 
+                                    max_value=max_id_val, 
+                                    step=1,
+                                    help=f"IDs válidos bajo este filtro: {ids_validos_pool}"
+                                )
+
+
                             acta_link = st.text_input("Enlace General al Repositorio de Evidencias / Acta (Opcional)")
                             obs_tecnicas = st.text_area("✍️ Observaciones de la Revisión / Motivo del Rechazo (Obligatorio si rechaza):")
                             
