@@ -1446,10 +1446,11 @@ else:
                             st.warning("⚠️ No existen reportes pendientes que coincidan con la combinación de filtros seleccionada.")
                         else:
                             # Renderizado de la matriz de datos filtrada
-                            df_visual_pend = df_filtrado_ref[['id_seguimiento', 'municipio', 'num_contrato', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'soporte_municipio']].copy()
-                            df_visual_pend.columns = ['ID Seguimiento', 'Municipio', 'Contrato', 'Subactividad', 'Pago N°', 'Valor a Validar', 'URL Soporte']
 
-with st.form("form_revision_referente"):
+                            df_visual_pend.columns = ['ID Seguimiento', 'Municipio', 'Contrato', 'Subactividad', 'Pago N°', 'Valor a Validar', 'URL Soporte']
+                            st.dataframe(df_visual_pend, use_container_width=True, hide_index=True)
+                            
+                            with st.form("form_revision_referente"):
                                 # Extracción e indexación segura de IDs pertenecientes al pool filtrado
                                 ids_validos_pool = df_filtrado_ref['id_seguimiento'].tolist()
                                 min_id_val = int(min(ids_validos_pool)) if ids_validos_pool else 1
@@ -1469,10 +1470,6 @@ with st.form("form_revision_referente"):
                                 submit_btn = st.form_submit_button("Confirmar Dictamen Técnico 🚀")
                                 
                             if submit_btn:
-
-
-
-
                                 if decision_ref == "Rechazar y Devolver al Municipio" and not obs_tecnicas.strip():
                                     st.error("❌ Debe ingresar el motivo del rechazo en el campo de observaciones.")
                                 else:
@@ -1483,7 +1480,7 @@ with st.form("form_revision_referente"):
                                             df_rev[col] = df_rev[col].astype(str).replace(['nan', 'None', '<NA>'], '')
                                         else:
                                             df_rev[col] = ''
-                                        
+                                            
                                     if decision_ref == "Aprobar Validación Técnica":
                                         df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'estado'] = 'REVISADO_REFERENTE'
                                         df_rev.loc[df_rev['id_seguimiento'] == id_rev, 'motivo_rechazo'] = 'Avalado por el referente'
