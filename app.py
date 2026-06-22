@@ -1445,8 +1445,8 @@ else:
                         if df_filtrado_ref.empty:
                             st.warning("⚠️ No existen reportes pendientes que coincidan con la combinación de filtros seleccionada.")
                         else:
-                            # Renderizado de la matriz de datos filtrada
-
+                            # 📊 Extracción de la matriz relacional completa indexando las 7 columnas requeridas
+                            df_visual_pend = df_filtrado_ref[['id_seguimiento', 'municipio', 'num_contrato', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'soporte_municipio']].copy()
                             df_visual_pend.columns = ['ID Seguimiento', 'Municipio', 'Contrato', 'Subactividad', 'Pago N°', 'Valor a Validar', 'URL Soporte']
                             st.dataframe(df_visual_pend, use_container_width=True, hide_index=True)
                             
