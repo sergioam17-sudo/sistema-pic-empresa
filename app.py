@@ -1448,9 +1448,8 @@ else:
                             # Renderizado de la matriz de datos filtrada
                             df_visual_pend = df_filtrado_ref[['id_seguimiento', 'municipio', 'num_contrato', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'soporte_municipio']].copy()
                             df_visual_pend.columns = ['ID Seguimiento', 'Municipio', 'Contrato', 'Subactividad', 'Pago N°', 'Valor a Validar', 'URL Soporte']
-                            st.dataframe(df_visual_pend, use_container_width=True, hide_index=True)
-                            
-                            with st.form("form_revision_referente"):
+
+with st.form("form_revision_referente"):
                                 # Extracción e indexación segura de IDs pertenecientes al pool filtrado
                                 ids_validos_pool = df_filtrado_ref['id_seguimiento'].tolist()
                                 min_id_val = int(min(ids_validos_pool)) if ids_validos_pool else 1
@@ -1463,12 +1462,17 @@ else:
                                     step=1,
                                     help=f"IDs válidos bajo este filtro: {ids_validos_pool}"
                                 )
+                                
+                                decision_ref = st.radio("Dictamen de la Revisión:", ["Aprobar Validación Técnica", "Rechazar y Devolver al Municipio"])
+                                acta_link = st.text_input("Enlace General al Repositorio de Evidencias / Acta (Opcional)")
+                                obs_tecnicas = st.text_area("✍️ Observaciones de la Revisión / Motivo del Rechazo (Obligatorio si rechaza):")
+                                submit_btn = st.form_submit_button("Confirmar Dictamen Técnico 🚀")
+                                
+                            if submit_btn:
 
 
-                            acta_link = st.text_input("Enlace General al Repositorio de Evidencias / Acta (Opcional)")
-                            obs_tecnicas = st.text_area("✍️ Observaciones de la Revisión / Motivo del Rechazo (Obligatorio si rechaza):")
-                            
-                            if st.form_submit_button("Confirmar Dictamen Técnico 🚀"):
+
+
                                 if decision_ref == "Rechazar y Devolver al Municipio" and not obs_tecnicas.strip():
                                     st.error("❌ Debe ingresar el motivo del rechazo en el campo de observaciones.")
                                 else:
