@@ -321,19 +321,27 @@ else:
                         color_semaforo = "🟢 CUMPLIMIENTO ÓPTIMO"
                         help_msg = "Ritmo de ejecución alineado con las metas del departamento."
 
+                    # Formateador local con centavos (,2f), puntos en miles y comas en decimales para el Municipio
+                    fmt_muni_asig = f"${muni_total_asig:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    fmt_muni_ejec = f"${muni_total_ejec:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    fmt_muni_saldo = f"${muni_saldo_pendiente:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    fmt_muni_porc = f"{muni_porc_global:.2f}%".replace('.', ',')
+
                     # Renderizado Flexible de KPIs en Columnas Estables
                     kpi_m1, kpi_m2, kpi_m3, kpi_m4 = st.columns(4)
                     with kpi_m1:
                         st.caption("📋 Presupuesto Asignado")
-                        st.markdown(f"### ${muni_total_asig:,.0f}")
+                        st.markdown(f"### {fmt_muni_asig}")
                     with kpi_m2:
                         st.caption("✅ Total Ejecutado (OK)")
-                        st.markdown(f"### ${muni_total_ejec:,.0f}")
-                        st.caption(f"📈 {muni_porc_global:.1f}% del total")
+                        st.markdown(f"### {fmt_muni_ejec}")
+                        st.caption(f"📈 {fmt_muni_porc} del total")
                     with kpi_m3:
                         st.caption("📥 Saldo Líquido")
-                        st.markdown(f"### ${muni_saldo_pendiente:,.0f}")
+                        st.markdown(f"### {fmt_muni_saldo}")
                     with kpi_m4:
+
+
                         st.caption("🚨 Estatus del Municipio")
                         st.markdown(f"#### {color_semaforo}")
 
@@ -545,20 +553,28 @@ else:
                     dep_eficiencia = (dep_total_ejec / dep_total_asig * 100) if dep_total_asig > 0 else 0
                     
                     # Estructura de columnas para evitar el colapso del contenedor nativo st.metric
+                    # Formateador local con centavos (,2f), puntos en miles y comas en decimales
+                    fmt_dep_pic = f"${dep_total_pic:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    fmt_dep_asig = f"${dep_total_asig:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    fmt_dep_ejec = f"${dep_total_ejec:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    fmt_dep_bolsa = f"${dep_saldo_bolsa:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    fmt_dep_eficiencia = f"{dep_eficiencia:.2f}%".replace('.', ',')
+
                     c_dep1, c_dep2, c_dep3, c_dep4 = st.columns(4)
                     with c_dep1:
                         st.caption("📋 Techo Total PIC")
-                        st.markdown(f"### ${dep_total_pic:,.0f}")
+                        st.markdown(f"### {fmt_dep_pic}")
                     with c_dep2:
                         st.caption("📍 Total Asignado Municipios")
-                        st.markdown(f"### ${dep_total_asig:,.0f}")
+                        st.markdown(f"### {fmt_dep_asig}")
                     with c_dep3:
                         st.caption("💰 Ejecución Financiera Real")
-                        st.markdown(f"### ${dep_total_ejec:,.0f}")
-                        st.caption(f"📈 {dep_eficiencia:.1f}% Eficiencia")
+                        st.markdown(f"### {fmt_dep_ejec}")
+                        st.caption(f"📈 {fmt_dep_eficiencia} Eficiencia")
                     with c_dep4:
                         st.caption("💼 Saldo PIC Sin Asignar")
-                        st.markdown(f"### ${dep_saldo_bolsa:,.0f}")
+                        st.markdown(f"### {fmt_dep_bolsa}")
+
                     
                     st.markdown("---")
                     
