@@ -1658,6 +1658,7 @@ else:
                                     st.markdown(acta_ia_texto)
 
                                     # --- CONSTRUCCIÓN DINÁMICA DEL DOCUMENTO WORD BASADO EN FORMATO INSTITUCIONAL ---
+                                    # --- CONSTRUCCIÓN DINÁMICA DEL DOCUMENTO WORD BASADO EN FORMATO INSTITUCIONAL ---
                                     from docx import Document
                                     from docx.shared import Inches, Pt
                                     import io
@@ -1667,9 +1668,7 @@ else:
                                     ruta_plantilla = "Formato Acta.docx"
                                     if os.path.exists(ruta_plantilla):
                                         doc_acta = Document(ruta_plantilla)
-                                    else:
-                                        doc_acta = Document(ruta_plantilla)
-                                        # Limpieza higiénica de textos basura heredados del binario
+                                        # Limpieza defensiva de los textos sueltos heredados del binario antiguo .doc
                                         for p in list(doc_acta.paragraphs):
                                             if "Republica de Colombia" in p.text or "Gobernacin de Santander" in p.text or "ACTA" in p.text:
                                                 p.text = ""
@@ -1682,7 +1681,7 @@ else:
                                         tbl_header.cell(0, 3).text = "CÓDIGO: AP-AI-RG-111\nVERSIÓN: 5"
                                         tbl_header.cell(1, 3).text = "FECHA: 16/08/2017"
 
-                                    # Establecer márgenes simétricos oficiales
+                                    # Configurar márgenes reglamentarios institucionales
                                     for section in doc_acta.sections:
                                         section.top_margin = Inches(1)
                                         section.bottom_margin = Inches(1)
