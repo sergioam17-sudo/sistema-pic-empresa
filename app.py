@@ -14,7 +14,7 @@
 #En la versión 6.6 Se incluye en el informe Word del supervisión la información financiera de los pagos de los informes de supervisor
 #En la versión 6.7 se incluye un filtro para el referente que le permita filtar las actividades a realizar por municipio y por actividad
 # En la versión 6.8 e incluye los decimales en el tablero de control
-
+# En la versión 6.9 se incluye la generación del acta del referente en el formato establecido de acta
 
 import streamlit as st
 import pandas as pd
@@ -1657,46 +1657,62 @@ else:
                                     st.markdown("### 📄 Cuerpo de Acta Generado por IA")
                                     st.markdown(acta_ia_texto)
 
-                                    # --- CONSTRUCCIÓN DINÁMICA DEL DOCUMENTO WORD (.DOCX) ---
+                                    # --- CONSTRUCCIÓN DINÁMICA DEL DOCUMENTO WORD BASADO EN FORMATO INSTITUCIONAL ---
                                     from docx import Document
                                     from docx.shared import Inches, Pt
                                     import io
+                                    import os
 
-                                    doc_acta = Document()
-                                    
-                                    # Márgenes de auditoría estándar de 1 pulgada
+                                    # Cargar plantilla institucional de la Gobernación subida a GitHub
+                                    ruta_plantilla = "Formato Acta.docx"
+                                    if os.path.exists(ruta_plantilla):
+                                        doc_acta = Document(ruta_plantilla)
+                                    else:
+                                        doc_acta = Document()
+                                        # Generar contingencia estructurada si la plantilla no se encuentra
+                                        tbl_header = doc_acta.add_table(rows=2, cols=4)
+                                        tbl_header.style = 'Table Grid'
+                                        tbl_header.cell(0, 0).text = "Gobernación de Santander"
+                                        tbl_header.cell(0, 1).merge(tbl_header.cell(0, 2)).text = "ACTA DE CONFORMIDAD PIC"
+                                        tbl_header.cell(0, 3).text = "CÓDIGO: AP-AI-RG-111\nVERSIÓN: 5"
+                                        tbl_header.cell(1, 3).text = "FECHA: 16/08/2017"
+
+                                    # Configurar márgenes reglamentarios institucionales
                                     for section in doc_acta.sections:
                                         section.top_margin = Inches(1)
                                         section.bottom_margin = Inches(1)
                                         section.left_margin = Inches(1)
                                         section.right_margin = Inches(1)
 
-                                    # Encabezado Formal del Acta
-                                    p_title = doc_acta.add_paragraph()
-                                    run_title = p_title.add_run("ACTA DE CONFORMIDAD Y CERTIFICACIÓN TÉCNICA - PIC")
-                                    run_title.bold = True
-                                    run_title.font.size = Pt(14)
-                                    run_title.font.name = 'Arial'
-                                    p_title.alignment = 1
+                                    # Metadatos del Control Presupuestal y Sanitario
+                                    doc_acta.add_paragraph("\n")
+                                    p_meta = doc_acta.add_paragraph()
+                                    p_meta.add_run("1. CONTROL ADMINISTRATIVO Y TERRITORIAL\n").bold = True
+                                    p_meta.add_run(f"• Municipio Beneficiario: {muni_seleccionado}\n")
+                                    p_meta.add_run(f"• Número de Contrato Estatal: {contrato_municipio}\n")
+                                    p_meta.add_run(f"• Periodo de Pago / Cuota Evaluada: Periodo N° {periodo_seleccionado}\n")
+                                    p_meta.add_run(f"• Fecha de Certificación: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}\n")
+                                    p_meta.add_run(f"• Profesional Referente Evaluador: {st.session_state['user']}\n")
 
-                                    # Bloque de Control de Metadatos Administrativos
-                                    doc_acta.add_paragraph(f"Municipio Beneficiario: {muni_seleccionado}")
-                                    doc_acta.add_paragraph(f"Número de Contrato Estatal: {contrato_municipio}")
-                                    doc_acta.add_paragraph(f"Periodo de Pago / Cuota Evaluada: Periodo N° {periodo_seleccionado}")
-                                    doc_acta.add_paragraph(f"Fecha de Certificación: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
-                                    doc_acta.add_paragraph(f"Profesional Referente Evaluador: {st.session_state['user']}")
-                                    doc_acta.add_paragraph("------------------------------------------------------------------------------------------------------------------------")
-
-                                    # Tabla Estructural de Datos Cuantitativos y Cualitativos
-                                    doc_acta.add_heading('1. Balance Cuantitativo y Observaciones de Actividades Revisadas', level=2)
+                                    doc_acta.add_heading('2. Balance Cuantitativo y Observaciones de Actividades Revisadas', level=2)
+                                    
+                                    # Matriz Cuantitativa Oficial
                                     tabla_ref = doc_acta.add_table(rows=1, cols=5)
-                                    tabla_ref.style = 'Light Shading Accent 1'
+                                    tabla_ref.style = 'Table Grid'
+                                    
                                     hdr_cells_ref = tabla_ref.rows[0].cells
                                     hdr_cells_ref[0].text = 'Subactividad Evaluada'
                                     hdr_cells_ref[1].text = 'Meta Prog.'
                                     hdr_cells_ref[2].text = 'Avance Físico'
                                     hdr_cells_ref[3].text = 'Monto Proporcional'
                                     hdr_cells_ref[4].text = 'Observación Técnica del Referente'
+
+                                    for cell in hdr_cells_ref:
+                                        for paragraph in cell.paragraphs:
+                                            for run in paragraph.runs:
+                                                run.font.bold = True
+                                                run.font.name = 'Arial'
+                                                run.font.size = Pt(10)
 
                                     for _, fila_acta in df_actas_filtrado.iterrows():
                                         row_c = tabla_ref.add_row().cells
@@ -1705,29 +1721,36 @@ else:
                                         row_c[2].text = str(fila_acta['avance_meta'])
                                         row_c[3].text = f"${fila_acta['valor_calculado']:,.2f}"
                                         row_c[4].text = str(fila_acta['observaciones_referente'])
+                                        
+                                        for cell in row_c:
+                                            for paragraph in cell.paragraphs:
+                                                for run in paragraph.runs:
+                                                    run.font.name = 'Arial'
+                                                    run.font.size = Pt(9.5)
 
                                     p_totales = doc_acta.add_paragraph()
                                     p_totales.add_run(f"\nTOTAL FINANCIERO CERTIFICADO EN EL PERIODO: ${total_financiero_periodo:,.2f}\n").bold = True
-                                    p_totales.add_run(f"EFICIENCIA OPERATIVA TERRITORIAL PROMEDIO: {eficiencia_operativa_acta:.2f}%").bold = True
+                                    p_totales.add_run(f"EFICIENCIA OPERATIVA TERRITORIAL PROMEDIO: {eficiencia_operativa_acta:.2f}%\n").bold = True
 
-                                    # Inyección del dictamen analítico emitido por la IA
-                                    doc_acta.add_heading('2. Dictamen de Validación Técnica y Análisis de Impacto', level=2)
-                                    doc_acta.add_paragraph(acta_ia_texto)
+                                    doc_acta.add_heading('3. Dictamen de Validación Técnica y Análisis de Impacto Sanitario', level=2)
+                                    p_ia = doc_acta.add_paragraph()
+                                    run_ia = p_ia.add_run(acta_ia_texto)
+                                    run_ia.font.name = 'Arial'
+                                    run_ia.font.size = Pt(11)
 
-                                    # Bloque Formal de Firmas de Cierre
                                     doc_acta.add_paragraph("\n\n\n_________________________________________\n"
                                                            "Firma y Aval de Conformidad\n"
-                                                           f"Referente Departamental: {st.session_state['user']}")
+                                                           f"Referente Departamental PIC: {st.session_state['user']}\n"
+                                                           "Gobernación de Santander")
 
-                                    # Conversión del buffer binario para descarga asíncrona
                                     bio_acta = io.BytesIO()
                                     doc_acta.save(bio_acta)
                                     bio_acta.seek(0)
 
                                     st.download_button(
-                                        label="📥 Descargar Acta de Conformidad Oficial (.docx)",
+                                        label="📥 Descargar Acta de Conformidad Oficial (Gobernación de Santander .docx)",
                                         data=bio_acta,
-                                        file_name=f"Acta_Conformidad_PIC_{muni_seleccionado}_Contrato_{contrato_municipio}_Pago_{periodo_seleccionado}.docx",
+                                        file_name=f"AP-AI-RG-111_Acta_PIC_{muni_seleccionado}_Pago_{periodo_seleccionado}.docx",
                                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                         key="btn_download_acta_word"
                                     )
