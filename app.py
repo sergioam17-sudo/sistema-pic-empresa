@@ -13,6 +13,8 @@
 # En la versión 6.5 se potencia el análisis de datos del tablero incluyendo la información de pagos con la tabla de secuencia
 #En la versión 6.6 Se incluye en el informe Word del supervisión la información financiera de los pagos de los informes de supervisor
 #En la versión 6.7 se incluye un filtro para el referente que le permita filtar las actividades a realizar por municipio y por actividad
+# En la versión 6.8 e incluye los decimales en el tablero de control
+
 
 import streamlit as st
 import pandas as pd
@@ -1447,6 +1449,13 @@ else:
                         else:
                             # 📊 Extracción de la matriz relacional completa indexando las 7 columnas requeridas
                             df_visual_pend = df_filtrado_ref[['id_seguimiento', 'municipio', 'num_contrato', 'nombre_subactividad', 'num_pago_actual', 'valor_calculado', 'soporte_municipio']].copy()
+                            
+                            # Aplicar formato de moneda local: Puntos para miles, comas para centavos
+                            df_visual_pend['valor_calculado'] = pd.to_numeric(df_visual_pend['valor_calculado'], errors='coerce').fillna(0.0)
+                            df_visual_pend['valor_calculado'] = df_visual_pend['valor_calculado'].map(
+                                lambda x: f"${x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                            )
+                            
                             df_visual_pend.columns = ['ID Seguimiento', 'Municipio', 'Contrato', 'Subactividad', 'Pago N°', 'Valor a Validar', 'URL Soporte']
                             st.dataframe(df_visual_pend, use_container_width=True, hide_index=True)
                             
@@ -2284,9 +2293,11 @@ Se recomienda coordinar comités técnicos de supervisión inmediata para mitiga
                 'Acta Referente', 'Supervisor que Aprobó', 'Estado', 'Observaciones / Motivo de Rechazo'
             ]
             
-            # Formateador de moneda dinámico y seguro
-            df_global['Valor Proporcional'] = pd.to_numeric(df_global['Valor Proporcional'], errors='coerce').fillna(0)
-            df_global['Valor Proporcional'] = df_global['Valor Proporcional'].map(lambda x: f"${x:,.2f}")
+            # Formateador de moneda profesional con puntos en miles y comas en centavos
+            df_global['Valor Proporcional'] = pd.to_numeric(df_global['Valor Proporcional'], errors='coerce').fillna(0.0)
+            df_global['Valor Proporcional'] = df_global['Valor Proporcional'].map(
+                lambda x: f"${x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+            )
         else:
             df_global = pd.DataFrame()
 
