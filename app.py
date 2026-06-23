@@ -1539,10 +1539,6 @@ else:
                         if not df_actas_base.empty and df_actas_filtrado.empty:
                             st.warning("⚠️ Debe seleccionar al menos una actividad en el recuadro superior para estructurar el acta.")
                         elif not df_actas_filtrado.empty:
-
-
-
-                        else:
                             st.success(f"📋 Se detectaron **{len(df_actas_filtrado)}** subactividades procesadas para el acta.")
                             
                             # --- EXTRACCIÓN DINÁMICA DEL NÚMERO DE CONTRATO ---
