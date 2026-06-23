@@ -1705,9 +1705,10 @@ else:
                                         f"Funcionario Referente Examinador: {st.session_state['user']}"
                                     ]
                                     for item in items_meta:
-                                        p_item = doc_acta.add_paragraph(style='List Bullet')
+                                        p_item = doc_acta.add_paragraph()
                                         p_item.paragraph_format.space_after = Pt(3)
-                                        r_item = p_item.add_run(item)
+                                        p_item.paragraph_format.left_indent = Inches(0.25)
+                                        r_item = p_item.add_run(f"• {item}")
                                         r_item.font.name = 'Arial'
                                         r_item.font.size = Pt(10)
 
