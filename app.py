@@ -1668,8 +1668,13 @@ else:
                                     if os.path.exists(ruta_plantilla):
                                         doc_acta = Document(ruta_plantilla)
                                     else:
+                                        doc_acta = Document(ruta_plantilla)
+                                        # Limpieza higiénica de textos basura heredados del binario
+                                        for p in list(doc_acta.paragraphs):
+                                            if "Republica de Colombia" in p.text or "Gobernacin de Santander" in p.text or "ACTA" in p.text:
+                                                p.text = ""
+                                    else:
                                         doc_acta = Document()
-                                        # Generar contingencia estructurada si la plantilla no se encuentra
                                         tbl_header = doc_acta.add_table(rows=2, cols=4)
                                         tbl_header.style = 'Table Grid'
                                         tbl_header.cell(0, 0).text = "Gobernación de Santander"
@@ -1677,78 +1682,119 @@ else:
                                         tbl_header.cell(0, 3).text = "CÓDIGO: AP-AI-RG-111\nVERSIÓN: 5"
                                         tbl_header.cell(1, 3).text = "FECHA: 16/08/2017"
 
-                                    # Configurar márgenes reglamentarios institucionales
+                                    # Establecer márgenes simétricos oficiales
                                     for section in doc_acta.sections:
                                         section.top_margin = Inches(1)
                                         section.bottom_margin = Inches(1)
                                         section.left_margin = Inches(1)
                                         section.right_margin = Inches(1)
 
-                                    # Metadatos del Control Presupuestal y Sanitario
-                                    doc_acta.add_paragraph("\n")
+                                    # 1. Sección de Metadatos Administrativos
                                     p_meta = doc_acta.add_paragraph()
-                                    p_meta.add_run("1. CONTROL ADMINISTRATIVO Y TERRITORIAL\n").bold = True
-                                    p_meta.add_run(f"• Municipio Beneficiario: {muni_seleccionado}\n")
-                                    p_meta.add_run(f"• Número de Contrato Estatal: {contrato_municipio}\n")
-                                    p_meta.add_run(f"• Periodo de Pago / Cuota Evaluada: Periodo N° {periodo_seleccionado}\n")
-                                    p_meta.add_run(f"• Fecha de Certificación: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}\n")
-                                    p_meta.add_run(f"• Profesional Referente Evaluador: {st.session_state['user']}\n")
+                                    p_meta.paragraph_format.space_before = Pt(18)
+                                    p_meta.paragraph_format.space_after = Pt(6)
+                                    run_title = p_meta.add_run("1. RECONOCIMIENTO ADMINISTRATIVO Y JURISDICCIONAL")
+                                    run_title.bold = True
+                                    run_title.font.name = 'Arial'
+                                    run_title.font.size = Pt(12)
+                                    
+                                    items_meta = [
+                                        f"Entidad Territorial Beneficiaria: {muni_seleccionado}",
+                                        f"Instrumento Jurídico / Contrato Estatal: N° {contrato_municipio}",
+                                        f"Hito Temporal Evaluado: Periodo de Pago N° {periodo_seleccionado}",
+                                        f"Sello Cronológico de Emisión: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}",
+                                        f"Funcionario Referente Examinador: {st.session_state['user']}"
+                                    ]
+                                    for item in items_meta:
+                                        p_item = doc_acta.add_paragraph(style='List Bullet')
+                                        p_item.paragraph_format.space_after = Pt(3)
+                                        r_item = p_item.add_run(item)
+                                        r_item.font.name = 'Arial'
+                                        r_item.font.size = Pt(10)
 
-                                    # Solución al KeyError: Reemplazo de add_heading por párrafo formateado manualmente
+                                    # 2. Encabezado de la Tabla de Rendimiento Operativo
                                     p_h2_1 = doc_acta.add_paragraph()
+                                    p_h2_1.paragraph_format.space_before = Pt(14)
+                                    p_h2_1.paragraph_format.space_after = Pt(8)
                                     run_h2_1 = p_h2_1.add_run("2. Balance Cuantitativo y Observaciones de Actividades Revisadas")
                                     run_h2_1.bold = True
                                     run_h2_1.font.name = 'Arial'
-                                    run_h2_1.font.size = Pt(13)
+                                    run_h2_1.font.size = Pt(12)
                                     
-                                    # Matriz Cuantitativa Oficial
+                                    # Estructuración nítida de la Matriz Cuantitativa
                                     tabla_ref = doc_acta.add_table(rows=1, cols=5)
                                     tabla_ref.style = 'Table Grid'
                                     
                                     hdr_cells_ref = tabla_ref.rows[0].cells
-                                    hdr_cells_ref[0].text = 'Subactividad Evaluada'
-                                    hdr_cells_ref[1].text = 'Meta Prog.'
-                                    hdr_cells_ref[2].text = 'Avance Físico'
-                                    hdr_cells_ref[3].text = 'Monto Proporcional'
-                                    hdr_cells_ref[4].text = 'Observación Técnica del Referente'
+                                    headers_texto = [
+                                        'Subactividad Evaluada', 
+                                        'Meta Prog.', 
+                                        'Avance Físico', 
+                                        'Monto Proporcional', 
+                                        'Observación Técnica del Referente'
+                                    ]
+                                    
+                                    for i, texto in enumerate(headers_texto):
+                                        hdr_cells_ref[i].text = ""
+                                        p_cell = hdr_cells_ref[i].paragraphs[0]
+                                        p_cell.paragraph_format.space_after = Pt(2)
+                                        p_cell.paragraph_format.space_before = Pt(2)
+                                        run_h = p_cell.add_run(texto)
+                                        run_h.bold = True
+                                        run_h.font.name = 'Arial'
+                                        run_h.font.size = Pt(10)
 
-                                    for cell in hdr_cells_ref:
-                                        for paragraph in cell.paragraphs:
-                                            for run in paragraph.runs:
-                                                run.font.bold = True
-                                                run.font.name = 'Arial'
-                                                run.font.size = Pt(10)
-
+                                    # Poblar filas de la matriz de forma indexada explícita (Evita duplicados)
                                     for _, fila_acta in df_actas_filtrado.iterrows():
-                                        row_c = tabla_ref.add_row().cells
-                                        row_c[0].text = str(fila_acta['nombre_subactividad'])
-                                        row_c[1].text = str(fila_acta['meta_municipal'])
-                                        row_c[2].text = str(fila_acta['avance_meta'])
-                                        row_c[3].text = f"${fila_acta['valor_calculado']:,.2f}"
-                                        row_c[4].text = str(fila_acta['observaciones_referente'])
-                                        
-                                        for cell in row_c:
-                                            for paragraph in cell.paragraphs:
-                                                for run in paragraph.runs:
-                                                    run.font.name = 'Arial'
-                                                    run.font.size = Pt(9.5)
+                                        row_cells = tabla_ref.add_row().cells
+                                        valores_fila = [
+                                            str(fila_acta['nombre_subactividad']),
+                                            str(fila_acta['meta_municipal']),
+                                            str(fila_acta['avance_meta']),
+                                            f"${fila_acta['valor_calculado']:,.2f}",
+                                            str(fila_acta['observaciones_referente'])
+                                        ]
+                                        for idx, val in enumerate(valores_fila):
+                                            row_cells[idx].text = ""
+                                            p_data = row_cells[idx].paragraphs[0]
+                                            p_data.paragraph_format.space_after = Pt(2)
+                                            p_data.paragraph_format.space_before = Pt(2)
+                                            run_d = p_data.add_run(val)
+                                            run_d.font.name = 'Arial'
+                                            run_d.font.size = Pt(9.5)
+                                            
+                                    # Asignar anchos de columna fijos para evitar deformaciones tipográficas
+                                    col_widths = [Inches(2.5), Inches(0.8), Inches(0.8), Inches(1.2), Inches(2.2)]
+                                    for row in tabla_ref.rows:
+                                        for idx, width in enumerate(col_widths):
+                                            row.cells[idx].width = width
 
+                                    # 3. Consolidación de Totales Financieros
                                     p_totales = doc_acta.add_paragraph()
-                                    p_totales.add_run(f"\nTOTAL FINANCIERO CERTIFICADO EN EL PERIODO: ${total_financiero_periodo:,.2f}\n").bold = True
-                                    p_totales.add_run(f"EFICIENCIA OPERATIVA TERRITORIAL PROMEDIO: {eficiencia_operativa_acta:.2f}%\n").bold = True
+                                    p_totales.paragraph_format.space_before = Pt(12)
+                                    r_totales = p_totales.add_run(
+                                        f"TOTAL FINANCIERO CERTIFICADO EN EL PERIODO: ${total_financiero_periodo:,.2f}\n"
+                                        f"COEFICIENTE DE EFICIENCIA OPERATIVA TERRITORIAL: {eficiencia_operativa_acta:.2f}%"
+                                    )
+                                    r_totales.bold = True
+                                    r_totales.font.name = 'Arial'
+                                    r_totales.font.size = Pt(10)
 
-                                    # Solución al KeyError: Reemplazo del segundo add_heading por párrafo formateado
+                                    # 4. Bloque de Análisis del Dictamen Sanitario de la IA
                                     p_h2_2 = doc_acta.add_paragraph()
+                                    p_h2_2.paragraph_format.space_before = Pt(16)
+                                    p_h2_2.paragraph_format.space_after = Pt(6)
                                     run_h2_2 = p_h2_2.add_run("3. Dictamen de Validación Técnica y Análisis de Impacto Sanitario")
                                     run_h2_2.bold = True
                                     run_h2_2.font.name = 'Arial'
-                                    run_h2_2.font.size = Pt(13)
+                                    run_h2_2.font.size = Pt(12)
 
                                     p_ia = doc_acta.add_paragraph()
                                     run_ia = p_ia.add_run(acta_ia_texto)
                                     run_ia.font.name = 'Arial'
-                                    run_ia.font.size = Pt(11)
+                                    run_ia.font.size = Pt(10)
 
+                                    # Cierre Legal y Firmas
                                     doc_acta.add_paragraph("\n\n\n_________________________________________\n"
                                                            "Firma y Aval de Conformidad\n"
                                                            f"Referente Departamental PIC: {st.session_state['user']}\n"
