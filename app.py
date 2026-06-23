@@ -1511,15 +1511,37 @@ else:
                         periodos_disponibles = sorted(df_merge_ref['num_pago_actual'].dropna().unique().astype(int).tolist())
                         periodo_seleccionado = c_f2.selectbox("📆 Seleccione el Periodo de Pago / Cuota:", periodos_disponibles, key="ref_pago_acta")
 
-                        # Aislamiento matricial de las actividades revisadas por el referente (estado REVISADO_REFERENTE o ACEPTADA)
-                        df_actas_filtrado = df_merge_ref[
+                        # 🔍 Primer aislamiento: Filtro por territorio y periodo temporal
+                        df_actas_base = df_merge_ref[
                             (df_merge_ref['municipio'] == muni_seleccionado) & 
                             (df_merge_ref['num_pago_actual'].astype(int) == int(periodo_seleccionado)) &
                             (df_merge_ref['estado'].isin(['REVISADO_REFERENTE', 'ACEPTADA']))
                         ].copy()
 
-                        if df_actas_filtrado.empty:
+                        if df_actas_base.empty:
                             st.info(f"ℹ️ No se han encontrado actividades con validación técnica para **{muni_seleccionado}** en el **Periodo {periodo_seleccionado}**.")
+                            df_actas_filtrado = pd.DataFrame()
+                        else:
+                            # Extraer las actividades válidas para este periodo en el municipio
+                            actividades_disponibles = sorted(df_actas_base['nombre_actividad'].dropna().unique().tolist())
+                            
+                            # 🎛️ Filtro de Selección Múltiple inyectado en la UI
+                            actividades_seleccionadas = st.multiselect(
+                                "🩺 Seleccione las Actividades a incluir en el Acta Formal:",
+                                options=actividades_disponibles,
+                                default=actividades_disponibles,
+                                key="acta_multiselect_actividades"
+                            )
+                            
+                            # Re-filtrado dinámico de la sábana final que procesa la IA y el Word (.docx)
+                            df_actas_filtrado = df_actas_base[df_actas_base['nombre_actividad'].isin(actividades_seleccionadas)].copy()
+
+                        if not df_actas_base.empty and df_actas_filtrado.empty:
+                            st.warning("⚠️ Debe seleccionar al menos una actividad en el recuadro superior para estructurar el acta.")
+                        elif not df_actas_filtrado.empty:
+
+
+
                         else:
                             st.success(f"📋 Se detectaron **{len(df_actas_filtrado)}** subactividades procesadas para el acta.")
                             
