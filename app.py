@@ -1694,7 +1694,12 @@ else:
                                     p_meta.add_run(f"• Fecha de Certificación: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}\n")
                                     p_meta.add_run(f"• Profesional Referente Evaluador: {st.session_state['user']}\n")
 
-                                    doc_acta.add_heading('2. Balance Cuantitativo y Observaciones de Actividades Revisadas', level=2)
+                                    # Solución al KeyError: Reemplazo de add_heading por párrafo formateado manualmente
+                                    p_h2_1 = doc_acta.add_paragraph()
+                                    run_h2_1 = p_h2_1.add_run("2. Balance Cuantitativo y Observaciones de Actividades Revisadas")
+                                    run_h2_1.bold = True
+                                    run_h2_1.font.name = 'Arial'
+                                    run_h2_1.font.size = Pt(13)
                                     
                                     # Matriz Cuantitativa Oficial
                                     tabla_ref = doc_acta.add_table(rows=1, cols=5)
@@ -1732,7 +1737,13 @@ else:
                                     p_totales.add_run(f"\nTOTAL FINANCIERO CERTIFICADO EN EL PERIODO: ${total_financiero_periodo:,.2f}\n").bold = True
                                     p_totales.add_run(f"EFICIENCIA OPERATIVA TERRITORIAL PROMEDIO: {eficiencia_operativa_acta:.2f}%\n").bold = True
 
-                                    doc_acta.add_heading('3. Dictamen de Validación Técnica y Análisis de Impacto Sanitario', level=2)
+                                    # Solución al KeyError: Reemplazo del segundo add_heading por párrafo formateado
+                                    p_h2_2 = doc_acta.add_paragraph()
+                                    run_h2_2 = p_h2_2.add_run("3. Dictamen de Validación Técnica y Análisis de Impacto Sanitario")
+                                    run_h2_2.bold = True
+                                    run_h2_2.font.name = 'Arial'
+                                    run_h2_2.font.size = Pt(13)
+
                                     p_ia = doc_acta.add_paragraph()
                                     run_ia = p_ia.add_run(acta_ia_texto)
                                     run_ia.font.name = 'Arial'
