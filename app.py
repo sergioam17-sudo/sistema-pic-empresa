@@ -15,6 +15,7 @@
 #En la versión 6.7 se incluye un filtro para el referente que le permita filtar las actividades a realizar por municipio y por actividad
 # En la versión 6.8 e incluye los decimales en el tablero de control
 # En la versión 6.9 se incluye la generación del acta del referente en el formato establecido de acta
+# en la versión 7 se incluye que se genera control financiero en el reporte  del municipio
 
 import streamlit as st
 import pandas as pd
