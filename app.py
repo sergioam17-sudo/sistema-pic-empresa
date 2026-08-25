@@ -16,6 +16,7 @@
 # En la versión 6.8 e incluye los decimales en el tablero de control
 # En la versión 6.9 se incluye la generación del acta del referente en el formato establecido de acta
 # en la versión 7 se incluye que se genera control financiero en el reporte  del municipio
+# en la versión 7.1 se quita el sobreescribir
 
 import streamlit as st
 import pandas as pd
@@ -31,6 +32,93 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 # --- FUNCIÓN PARA INICIALIZAR ENCABEZADOS (AUTOMÁTICO) ---
 
+import time
+
+# --- 1. LECTURA DIRECTA RESILIENTE CON BACKOFF EXPONENCIAL ---
+def _direct_read_retry(worksheet_name, max_retries=4):
+    for i in range(max_retries):
+        try:
+            df = conn.read(spreadsheet=URL_DB, worksheet=worksheet_name, ttl=0)
+            if df is not None:
+                return df
+        except Exception as e:
+            if i == max_retries - 1:
+                return None
+            # Pausa progresiva: 2s, 3s, 5s, 9s
+            time.sleep((2 ** i) + 1)
+    return None
+
+# --- 2. LECTURA CENTRALIZADA EN MEMORIA (TTL DE 60 SEGUNDOS) ---
+@st.cache_data(ttl=60, show_spinner=False)
+def get_data_cached(nombre_hoja):
+    df = _direct_read_retry(nombre_hoja)
+    if df is None:
+        raise RuntimeError(f"Límite de cuota temporal al consultar '{nombre_hoja}'.")
+    return df
+
+# --- 3. GESTOR DE LECTURA PROTEGIDO CONTRA DATASETS VACÍOS ---
+def get_data(nombre_hoja, forzar=False):
+    if forzar:
+        df_fresh = _direct_read_retry(nombre_hoja)
+        if df_fresh is not None:
+            return df_fresh.copy()
+        try:
+            return get_data_cached(nombre_hoja).copy()
+        except Exception:
+            return pd.DataFrame()
+    else:
+        try:
+            return get_data_cached(nombre_hoja).copy()
+        except Exception:
+            df_recovery = _direct_read_retry(nombre_hoja)
+            if df_recovery is not None:
+                return df_recovery.copy()
+            st.warning(f"⚠️ Servidor ocupado al leer '{nombre_hoja}'. Recuperando registros...")
+            return pd.DataFrame()
+
+# --- 4. ESCRITURA SEGURA Y CONTROL DE INTEGRIDAD TRANSACCIONAL ---
+def safe_update(worksheet_name, df_final):
+    if df_final is None or (isinstance(df_final, pd.DataFrame) and df_final.empty and len(df_final.columns) == 0):
+        st.error("🛑 Bloqueo de seguridad: Se evitó la sobreescritura con un dataset nulo o no estructurado.")
+        return False
+        
+    max_retries = 4
+    for i in range(max_retries):
+        try:
+            conn.update(spreadsheet=URL_DB, worksheet=worksheet_name, data=df_final)
+            get_data_cached.clear()
+            return True
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str or "Quota" in err_str:
+                espera = (2 ** i) * 3
+                st.warning(f"⏳ Concurrencia detectada en '{worksheet_name}'. Esperando {espera}s para validar escritura...")
+                time.sleep(espera)
+            else:
+                st.error(f"Error en persistencia de datos ({worksheet_name}): {e}")
+                return False
+                
+    st.error(f"❌ No fue posible sincronizar en '{worksheet_name}'. Intente de nuevo en un minuto.")
+    return False
+
+# --- 5. REGISTRO DE USUARIOS SEGURO (CON CONTROL DE IDS) ---
+def guardar_nuevo_usuario(nombre, email, clave, rol, muni):
+    df_actual = get_data("usuarios", forzar=True)
+    nuevo_id = 1 if df_actual.empty or "id_usuario" not in df_actual.columns else df_actual["id_usuario"].max() + 1
+    nueva_fila = pd.DataFrame([{
+        "id_usuario": nuevo_id,
+        "nombre_completo": nombre,
+        "email": email,
+        "password": clave,
+        "rol": rol,
+        "municipio_asignado": muni
+    }])
+    df_final = pd.concat([df_actual, nueva_fila], ignore_index=True)
+    success = safe_update("usuarios", df_final)
+    if success:
+        st.success("Usuario registrado exitosamente.")
+
+# --- 6. INICIALIZADOR PROTEGIDO (SIN SOBREESCRITURA DESTRUCTIVA) ---
 def init_excel_db():
     tablas = {
         "usuarios": ["id_usuario", "nombre_completo", "email", "password", "rol", "municipio_asignado"],
@@ -38,125 +126,28 @@ def init_excel_db():
         "subactividades": ["id_sub", "id_actividad", "nombre_subactividad", "valor_sub", "meta_sub", "unidad_medida_sub", "peso"],
         "asignacion_municipios": ["id_asig", "id_sub", "municipio", "num_contrato", "num_pagos", "valor_asignado", "meta_municipal", "unidad_medida_muni"],
         "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "soporte_url", "estado", "referente_aprobador", "acta_referente", "observaciones_referente", "supervisor_aprobador", "motivo_rechazo", "chk_plan_trabajo", "chk_cronograma", "chk_personal", "chk_seg_social", "chk_inf_parcial", "chk_inf_final", "chk_polizas"],
-        "secuencia": ["id_secuencia", "id_seguimiento", "id_asig", "municipio", "numero_contrato", "cp_nit_beneficiario", "numero_pagos", "primer_pago","ultimo_pago","total_pagado_oc","valor_cp","saldo_cp","porcentaje_ejecucion"]
+        "secuencia": ["id_secuencia", "id_seguimiento", "id_asig", "municipio", "numero_contrato", "cp_nit_beneficiario", "numero_pagos", "primer_pago", "ultimo_pago", "total_pagado_oc", "valor_cp", "saldo_cp", "porcentaje_ejecucion"]
     }
     
     for nombre, columnas in tablas.items():
         try:
-            # TTL=0 para forzar lectura fresca
-            df = conn.read(spreadsheet=URL_DB, worksheet=nombre, ttl=0)
-            if df is None or df.empty:
+            df = _direct_read_retry(nombre, max_retries=2)
+            # Solo crea columnas si la hoja respondió con éxito Y está 100% vacía sin encabezados
+            if df is not None and df.empty and len(df.columns) == 0:
                 df_init = pd.DataFrame(columns=columnas)
                 safe_update(nombre, df_init)
         except Exception:
-            # Si la hoja no existe físicamente, la crea con los encabezados
-            df_init = pd.DataFrame(columns=columnas)
-            safe_update(nombre, df_init)
+            # Si la cuota de la API falla, se omite para no borrar datos históricos
+            pass
 
-
-import time
-
-# Nueva función para manejar el tráfico de 87 municipios al escribir
-def safe_update(worksheet_name, df_final):
-    max_retries = 3
-    for i in range(max_retries):
-        try:
-            conn.update(spreadsheet=URL_DB, worksheet=worksheet_name, data=df_final)
-            st.cache_data.clear() # Limpia la memoria local para que todos vean el cambio
-            return True
-        except Exception as e:
-            if "429" in str(e):
-                espera = (i + 1) * 5
-                st.warning(f"⚠️ Servidor ocupado (Tráfico alto). Reintentando en {espera}s...")
-                time.sleep(espera)
-            else:
-                st.error(f"Error al sincronizar: {e}")
-                return False
-    return False
-
-
-
-
-
-
-
-
-# --- REEMPLAZO DE 'INSERT INTO' ---
-def guardar_nuevo_usuario(nombre, email, clave, rol, muni):
-    # 1. Leer datos actuales
-    df_actual = conn.read(spreadsheet=URL_DB, worksheet="usuarios")
-    
-    # 2. Crear nueva fila (Pandas)
-    nuevo_id = 1 if df_actual.empty else df_actual["id_usuario"].max() + 1
-    nueva_fila = pd.DataFrame([[nuevo_id, nombre, email, clave, rol, muni]], 
-                              columns=df_actual.columns)
-    
-    # 3. Unir y Subir
-    df_final = pd.concat([df_actual, nueva_fila], ignore_index=True)
-    
-    success = safe_update("usuarios", df_final)
-    if success:
-        st.success("Usuario guardado y sincronizado.")
-
-
-
-
-
-
-
-
-
-# --- CONFIGURACIÓN DE LECTURA ---
-# --- CONFIGURACIÓN DE LECTURA OPTIMIZADA CON CACHÉ ---
-# Se utiliza st.cache_data para que los 87 municipios consulten la RAM antes que el Drive
-@st.cache_data(ttl=120)  # Mantiene los datos en memoria por 2 minutos para todos
-def get_data_cached(nombre_hoja):
-    return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja)
-
-# --- CÓDIGO CORREGIDO Y OPTIMIZADO ---
-# --- CÓDIGO CORREGIDO Y OPTIMIZADO CON BACKOFF EXPONENCIAL ---
-def get_data(nombre_hoja, forzar=False):
-    if forzar:
-        # Si se acaba de guardar algo, limpiamos la caché y leemos directo con reintentos seguros
-        st.cache_data.clear()
-        for intento in range(3):
-            try:
-                return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl=0)
-            except Exception:
-                time.sleep((intento + 1) * 3)  # Espera progresiva de 3s, 6s...
-        # Último recurso por si falla el bucle
-        return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl=0)
-    else:
-        # Uso optimizado de la memoria local para consultas masivas
-        try:
-            return get_data_cached(nombre_hoja)
-        except Exception as e:
-            # Captura defensiva si la caché falla o expira en alta concurrencia
-            st.warning(f"⏳ Alerta de tráfico en '{nombre_hoja}'. Mitigando congestión con Google Sheets...")
-            
-            # Algoritmo de mitigación por reintentos progresivos ante APIError
-            for intento in range(3):
-                try:
-                    time.sleep((intento + 1) * 4)  # Pausa de seguridad (4s, 8s, 12s) para liberar cuota de Google
-                    return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl=0)
-                except Exception:
-                    continue
-            
-            # Intento final de recuperación crítica
-            return conn.read(spreadsheet=URL_DB, worksheet=nombre_hoja, ttl=0)
-
-
-
-# --- OPTIMIZACIÓN: Solo inicializar una vez por sesión para ahorrar cuota ---
+# --- 7. CONTROL DE INICIALIZACIÓN POR SESIÓN ---
 if 'db_initialized' not in st.session_state:
     try:
         init_excel_db()
         st.session_state['db_initialized'] = True
-    except Exception as e:
-        if "429" in str(e):
-            st.warning("⚠️ Google está procesando muchas solicitudes. Espera 30 segundos y refresca la página.")
-        else:
-            st.error(f"Error al conectar con la base de datos: {e}")
+    except Exception:
+        pass
+
 
 
 
