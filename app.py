@@ -17,6 +17,7 @@
 # En la versión 6.9 se incluye la generación del acta del referente en el formato establecido de acta
 # en la versión 7 se incluye que se genera control financiero en el reporte  del municipio
 # en la versión 7.1 se quita el sobreescribir
+# En la versión 7.2 se uita el que se pueda eliminar hoja de seguimiento
 
 import streamlit as st
 import pandas as pd
@@ -57,32 +58,69 @@ def get_data_cached(nombre_hoja):
     return df
 
 # --- 3. GESTOR DE LECTURA PROTEGIDO CONTRA DATASETS VACÍOS ---
+
+# --- 3. GESTOR DE LECTURA BLINDADO (SIN RETORNO DESTRUCTIVO VACÍO) ---
 def get_data(nombre_hoja, forzar=False):
+    """
+    Recupera los datos garantizando que ante congestión de red jamás
+    se retorne un DataFrame vacío silencioso si la hoja tiene registros.
+    """
     if forzar:
-        df_fresh = _direct_read_retry(nombre_hoja)
-        if df_fresh is not None:
+        df_fresh = _direct_read_retry(nombre_hoja, max_retries=5)
+        if df_fresh is not None and not df_fresh.empty:
             return df_fresh.copy()
         try:
-            return get_data_cached(nombre_hoja).copy()
+            df_cache = get_data_cached(nombre_hoja)
+            if df_cache is not None and not df_cache.empty:
+                return df_cache.copy()
         except Exception:
-            return pd.DataFrame()
+            pass
+        st.error(f"🚨 Alerta de Concurrencia Crítica: No fue posible leer '{nombre_hoja}'. Operación detenida por seguridad.")
+        st.stop()
     else:
         try:
-            return get_data_cached(nombre_hoja).copy()
+            df_cached = get_data_cached(nombre_hoja)
+            if df_cached is not None and not df_cached.empty:
+                return df_cached.copy()
         except Exception:
-            df_recovery = _direct_read_retry(nombre_hoja)
-            if df_recovery is not None:
-                return df_recovery.copy()
-            st.warning(f"⚠️ Servidor ocupado al leer '{nombre_hoja}'. Recuperando registros...")
-            return pd.DataFrame()
+            pass
 
-# --- 4. ESCRITURA SEGURA Y CONTROL DE INTEGRIDAD TRANSACCIONAL ---
+        df_recovery = _direct_read_retry(nombre_hoja, max_retries=5)
+        if df_recovery is not None:
+            return df_recovery.copy()
+
+        st.warning(f"⏳ Mitigando congestión en Google Sheets para '{nombre_hoja}'...")
+        st.stop()
+
+# --- 4. ESCRITURA TRANSACCIONAL CON BARRERA ANTI-BORRADO ---
 def safe_update(worksheet_name, df_final):
-    if df_final is None or (isinstance(df_final, pd.DataFrame) and df_final.empty and len(df_final.columns) == 0):
-        st.error("🛑 Bloqueo de seguridad: Se evitó la sobreescritura con un dataset nulo o no estructurado.")
+    """
+    Garantiza la persistencia atómica. Si se detecta riesgo de sobreescritura
+    accidental con menos registros de los que ya existen, cancela la petición.
+    """
+    if df_final is None or not isinstance(df_final, pd.DataFrame):
+        st.error(f"🛑 Error Transaccional: El dataset enviado a '{worksheet_name}' no es válido.")
         return False
-        
-    max_retries = 4
+
+    # Verificación preventiva contra borrado accidental de registros en seguimiento
+    if worksheet_name == "seguimiento_pagos":
+        try:
+            # Comprobación de integridad previa a la sobreescritura
+            df_previo = _direct_read_retry(worksheet_name, max_retries=3)
+            if df_previo is not None and not df_previo.empty:
+                filas_previas = len(df_previo)
+                filas_nuevas = len(df_final)
+                # Si el nuevo DataFrame tiene menos filas, se aborta la escritura destructiva
+                if filas_nuevas < filas_previas:
+                    st.error(
+                        f"🛑 Bloqueo de Seguridad Activado: Se intentó guardar un lote de {filas_nuevas} "
+                        f"registros sobre una base de {filas_previas} filas. Transacción abortada para evitar pérdida de datos."
+                    )
+                    return False
+        except Exception:
+            pass
+
+    max_retries = 5
     for i in range(max_retries):
         try:
             conn.update(spreadsheet=URL_DB, worksheet=worksheet_name, data=df_final)
@@ -90,16 +128,20 @@ def safe_update(worksheet_name, df_final):
             return True
         except Exception as e:
             err_str = str(e)
-            if "429" in err_str or "Quota" in err_str:
-                espera = (2 ** i) * 3
-                st.warning(f"⏳ Concurrencia detectada en '{worksheet_name}'. Esperando {espera}s para validar escritura...")
+            if "429" in err_str or "Quota" in err_str or "exhausted" in err_str.lower():
+                espera = (2 ** i) * 3 + 2
+                st.warning(f"⏳ Concurrencia alta en '{worksheet_name}'. Esperando {espera}s para confirmar escritura...")
                 time.sleep(espera)
             else:
-                st.error(f"Error en persistencia de datos ({worksheet_name}): {e}")
+                st.error(f"Error de persistencia ({worksheet_name}): {e}")
                 return False
-                
-    st.error(f"❌ No fue posible sincronizar en '{worksheet_name}'. Intente de nuevo en un minuto.")
+
+    st.error(f"❌ No fue posible sincronizar en '{worksheet_name}' tras {max_retries} intentos.")
     return False
+
+
+
+
 
 # --- 5. REGISTRO DE USUARIOS SEGURO (CON CONTROL DE IDS) ---
 def guardar_nuevo_usuario(nombre, email, clave, rol, muni):
