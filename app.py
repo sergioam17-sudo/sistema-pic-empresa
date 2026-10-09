@@ -20,7 +20,7 @@
 # En la versión 7.2 se uita el que se pueda eliminar hoja de seguimiento y se coloca el motivo de rechazo de supevisor
 # En la versión 7.3 se ingresa el cambio de en el certificado cambiar la palabra referente por supervisor de apoyo
 # En la versión 7.4 se arregla el calculo de la ejecución financiera real
-
+# En la versión 7.5 se realiza protección a la eliminación de la hoja de seguimeinto de pagos
 
 import streamlit as st
 import pandas as pd
@@ -96,32 +96,44 @@ def get_data(nombre_hoja, forzar=False):
         st.stop()
 
 # --- 4. ESCRITURA TRANSACCIONAL CON BARRERA ANTI-BORRADO ---
+
+# --- 4. ESCRITURA TRANSACCIONAL CON BARRERA ANTI-BORRADO BLINDADA ---
 def safe_update(worksheet_name, df_final):
     """
     Garantiza la persistencia atómica. Si se detecta riesgo de sobreescritura
-    accidental con menos registros de los que ya existen, cancela la petición.
+    accidental con un DataFrame vacío o menor, cancela la petición de forma segura.
     """
     if df_final is None or not isinstance(df_final, pd.DataFrame):
         st.error(f"🛑 Error Transaccional: El dataset enviado a '{worksheet_name}' no es válido.")
         return False
 
-    # Verificación preventiva contra borrado accidental de registros en seguimiento
-    if worksheet_name == "seguimiento_pagos":
+    # Verificación preventiva estricta para seguimiento_pagos y tablas críticas
+    if worksheet_name in ["seguimiento_pagos", "asignacion_municipios", "subactividades"]:
         try:
-            # Comprobación de integridad previa a la sobreescritura
             df_previo = _direct_read_retry(worksheet_name, max_retries=3)
             if df_previo is not None and not df_previo.empty:
                 filas_previas = len(df_previo)
                 filas_nuevas = len(df_final)
-                # Si el nuevo DataFrame tiene menos filas, se aborta la escritura destructiva
-                if filas_nuevas < filas_previas:
+                
+                # Bloqueo crítico: Si la base previa tiene registros y el nuevo intento envía 0 filas (o menos), se aborta.
+                if filas_previas > 0 and filas_nuevas == 0:
                     st.error(
-                        f"🛑 Bloqueo de Seguridad Activado: Se intentó guardar un lote de {filas_nuevas} "
-                        f"registros sobre una base de {filas_previas} filas. Transacción abortada para evitar pérdida de datos."
+                        f"🛑 Bloqueo Crítico de Seguridad: Se intentó sobrescribir la hoja '{worksheet_name}' "
+                        f"que contiene {filas_previas} registros con un lote VACÍO (0 filas). Transacción abortada."
                     )
                     return False
-        except Exception:
-            pass
+                
+                if filas_nuevas < filas_previas and worksheet_name == "seguimiento_pagos":
+                    st.error(
+                        f"🛑 Bloqueo de Seguridad Activado: Se intentó guardar un lote de {filas_nuevas} "
+                        f"registros sobre una base de {filas_previas} filas en '{worksheet_name}'. Transacción abortada para evitar pérdida de datos."
+                    )
+                    return False
+        except Exception as e:
+            # Si falla la lectura previa por red, por seguridad se detiene la escritura si la nueva está vacía
+            if df_final.empty:
+                st.error(f"🛑 Error de Concurrencia: No se pudo verificar la integridad previa de '{worksheet_name}' y el dataset nuevo está vacío.")
+                return False
 
     max_retries = 5
     for i in range(max_retries):
@@ -146,6 +158,7 @@ def safe_update(worksheet_name, df_final):
 
 
 
+
 # --- 5. REGISTRO DE USUARIOS SEGURO (CON CONTROL DE IDS) ---
 def guardar_nuevo_usuario(nombre, email, clave, rol, muni):
     df_actual = get_data("usuarios", forzar=True)
@@ -164,6 +177,8 @@ def guardar_nuevo_usuario(nombre, email, clave, rol, muni):
         st.success("Usuario registrado exitosamente.")
 
 # --- 6. INICIALIZADOR PROTEGIDO (SIN SOBREESCRITURA DESTRUCTIVA) ---
+
+# --- 6. INICIALIZADOR PROTEGIDO (SIN SOBREESCRITURA DESTRUCTIVA) ---
 def init_excel_db():
     tablas = {
         "usuarios": ["id_usuario", "nombre_completo", "email", "password", "rol", "municipio_asignado"],
@@ -176,14 +191,16 @@ def init_excel_db():
     
     for nombre, columnas in tablas.items():
         try:
-            df = _direct_read_retry(nombre, max_retries=2)
-            # Solo crea columnas si la hoja respondió con éxito Y está 100% vacía sin encabezados
+            df = _direct_read_retry(nombre, max_retries=3)
+            # Únicamente inicializa si la hoja responde correctamente, está totalmente vacía y no tiene columnas creadas
             if df is not None and df.empty and len(df.columns) == 0:
                 df_init = pd.DataFrame(columns=columnas)
-                safe_update(nombre, df_init)
+                conn.update(spreadsheet=URL_DB, worksheet=nombre, data=df_init)
         except Exception:
-            # Si la cuota de la API falla, se omite para no borrar datos históricos
+            # Ante cualquier fallo de red o cuota al iniciar, se omite silenciosamente para proteger los datos históricos
             pass
+
+
 
 # --- 7. CONTROL DE INICIALIZACIÓN POR SESIÓN ---
 if 'db_initialized' not in st.session_state:
