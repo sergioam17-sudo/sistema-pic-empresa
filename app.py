@@ -1976,7 +1976,7 @@ else:
                                     df_pagos_master['motivo_rechazo'] = df_pagos_master['motivo_rechazo'].astype(str)
                                     
                                     # El estado se fija explícitamente como RECHAZADO para que el municipio lo identifique y pueda corregirlo
-                                    df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'estado'] = 'RECHAZADO'
+                                    df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'estado'] = 'RECHAZADO_SUPERVISOR'
                                     df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'motivo_rechazo'] = f"RECHAZO SUPERVISOR: {motivo}"
                                     
                                     if safe_update("seguimiento_pagos", df_pagos_master):
