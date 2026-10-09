@@ -17,7 +17,8 @@
 # En la versión 6.9 se incluye la generación del acta del referente en el formato establecido de acta
 # en la versión 7 se incluye que se genera control financiero en el reporte  del municipio
 # en la versión 7.1 se quita el sobreescribir
-# En la versión 7.2 se uita el que se pueda eliminar hoja de seguimiento
+# En la versión 7.2 se uita el que se pueda eliminar hoja de seguimiento y se coloca el motivo de rechazo de supevisor
+
 
 import streamlit as st
 import pandas as pd
@@ -1974,13 +1975,14 @@ else:
                                     df_pagos_master['estado'] = df_pagos_master['estado'].astype(str)
                                     df_pagos_master['motivo_rechazo'] = df_pagos_master['motivo_rechazo'].astype(str)
                                     
-                                    # El estado regresa a PENDIENTE, reiniciando el flujo para el Municipio de forma segura
-                                    df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'estado'] = 'PENDIENTE'
-                                    df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'motivo_rechazo'] = motivo
+                                    # El estado se fija explícitamente como RECHAZADO para que el municipio lo identifique y pueda corregirlo
+                                    df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'estado'] = 'RECHAZADO'
+                                    df_pagos_master.loc[df_pagos_master['id_seguimiento'] == id_evaluar, 'motivo_rechazo'] = f"RECHAZO SUPERVISOR: {motivo}"
                                     
                                     if safe_update("seguimiento_pagos", df_pagos_master):
-                                        st.warning(f"⚠️ Reporte devuelto al municipio. Estado restablecido a PENDIENTE.")
+                                        st.warning(f"⚠️ Reporte devuelto al municipio con estado 'RECHAZADO' por el supervisor.")
                                         st.rerun()
+
 # ==============================================================================
 # GENERADOR DE INFORMES DE EJECUCIÓN: INFORME TECNICO ADMINISTRATIVO Y FINANCIERO
 # ==============================================================================
