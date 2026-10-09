@@ -19,6 +19,7 @@
 # en la versión 7.1 se quita el sobreescribir
 # En la versión 7.2 se uita el que se pueda eliminar hoja de seguimiento y se coloca el motivo de rechazo de supevisor
 # En la versión 7.3 se ingresa el cambio de en el certificado cambiar la palabra referente por supervisor de apoyo
+# En la versión 7.4 se arregla el calculo de la ejecución financiera real
 
 
 import streamlit as st
@@ -297,16 +298,19 @@ else:
             if not df_act_raw.empty:
                 df_master = df_master.merge(df_act_raw[['id_actividad', 'nombre_actividad', 'programa_responsable']], on="id_actividad", how="left")
             
-            # Tratamiento y consolidación de la tabla de ejecución (seguimiento_pagos)
+           # Tratamiento y consolidación de la tabla de ejecución (seguimiento_pagos)
             if not df_pagos_raw.empty:
-                # Filtrar únicamente los pagos validados por el área técnica o aprobados finales
-                df_pagos_validados = df_pagos_raw[df_pagos_raw['estado'].isin(['ACEPTADA', 'REVISADO_REFERENTE'])].copy()
+                # CORRECCIÓN FINANCIERA: Filtrar EXCLUSIVAMENTE los pagos con estado 'ACEPTADA' por el Supervisor
+                df_pagos_validados = df_pagos_raw[df_pagos_raw['estado'] == 'ACEPTADA'].copy()
                 
-                # Agrupación por id_asig para obtener la ejecución histórica acumulada
+                # Agrupación por id_asig para obtener la ejecución histórica acumulada real
                 df_pagos_agg = df_pagos_validados.groupby('id_asig').agg({
                     'valor_calculado': 'sum',
                     'avance_meta': 'sum'
                 }).reset_index()
+
+
+
                 df_pagos_agg.columns = ['id_asig', 'total_ejecutado_financiero', 'total_ejecutado_fisico']
                 
                 # Unir el acumulado al DataFrame Maestro
