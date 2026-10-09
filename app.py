@@ -18,6 +18,7 @@
 # en la versión 7 se incluye que se genera control financiero en el reporte  del municipio
 # en la versión 7.1 se quita el sobreescribir
 # En la versión 7.2 se uita el que se pueda eliminar hoja de seguimiento y se coloca el motivo de rechazo de supevisor
+# En la versión 7.3 se ingresa el cambio de en el certificado cambiar la palabra referente por supervisor de apoyo
 
 
 import streamlit as st
@@ -1832,7 +1833,7 @@ else:
                                     # Cierre Legal y Firmas
                                     doc_acta.add_paragraph("\n\n\n_________________________________________\n"
                                                            "Firma y Aval de Conformidad\n"
-                                                           f"Referente Departamental PIC: {st.session_state['user']}\n"
+                                                           f"Supervisor de apoyo Departamental PIC: {st.session_state['user']}\n"
                                                            "Gobernación de Santander")
 
                                     bio_acta = io.BytesIO()
