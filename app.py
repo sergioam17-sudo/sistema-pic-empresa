@@ -1384,7 +1384,7 @@ else:
                 
                 if not df_muni_actual.empty:
                     # 🔴 ALERTA 1: Renderizar rechazos activos provenientes del Supervisor General
-                    df_rechazos_sup = df_muni_actual[df_muni_actual['estado'] == 'RECHAZADO']
+                    df_muni_solo_rech = df_muni_actual[df_muni_actual['estado'].isin(['RECHAZADO_SUPERVISOR', 'RECHAZADO_REFERENTE'])]
                     if not df_rechazos_sup.empty:
                         st.error("⚠️ **ATENCIÓN DE SUPERVISIÓN:** El Supervisor ha devuelto reportes de este municipio. Revise las correcciones exigidas a continuación:")
                         for _, r_rech in df_rechazos_sup.iterrows():
