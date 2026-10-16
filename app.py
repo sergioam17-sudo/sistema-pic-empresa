@@ -1384,7 +1384,7 @@ else:
                 
                 if not df_muni_actual.empty:
                     # 🔴 ALERTA 1: Renderizar rechazos activos provenientes del Supervisor General
-                    df_muni_solo_rech = df_muni_actual[df_muni_actual['estado'].isin(['RECHAZADO_SUPERVISOR', 'RECHAZADO_REFERENTE'])]
+                    df_rechazos_sup = df_muni_actual[df_muni_actual['estado'] == 'RECHAZADO_SUPERVISOR']
                     if not df_rechazos_sup.empty:
                         st.error("⚠️ **ATENCIÓN DE SUPERVISIÓN:** El Supervisor ha devuelto reportes de este municipio. Revise las correcciones exigidas a continuación:")
                         for _, r_rech in df_rechazos_sup.iterrows():
@@ -1411,7 +1411,7 @@ else:
                     
                     # --- COMPONENTE INTEGRADO DE CORRECCIÓN Y REENVÍO ---
                     with st.expander("🔄 Corregir y Reenviar Reporte Rechazado (Supervisor / Referente)"):
-                        df_muni_solo_rech = df_muni_actual[df_muni_actual['estado'].isin(['RECHAZADO', 'RECHAZADO_REFERENTE'])]
+                        df_muni_solo_rech = df_muni_actual[df_muni_actual['estado'].isin(['RECHAZADO_SUPERVISOR', 'RECHAZADO_REFERENTE'])]
                         
                         if df_muni_solo_rech.empty:
                             st.info("No se registran novedades o reportes rechazados pendientes de corrección.")
