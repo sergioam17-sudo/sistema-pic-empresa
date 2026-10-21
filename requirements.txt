@@ -2,6 +2,8 @@ streamlit
 pandas
 SQLAlchemy>=2.0.0
 psycopg2-binary
+st-gsheets-connection
+google-auth
 plotly
 python-docx
 requests
