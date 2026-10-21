@@ -21,6 +21,7 @@
 # En la versión 7.3 se ingresa el cambio de en el certificado cambiar la palabra referente por supervisor de apoyo
 # En la versión 7.4 se arregla el calculo de la ejecución financiera real
 # En la versión 7.5 se realiza protección a la eliminación de la hoja de seguimeinto de pagos
+# En la versión 7.6 se cambia el motor de BD
 
 import streamlit as st
 import pandas as pd
@@ -2534,3 +2535,114 @@ Se recomienda coordinar comités técnicos de supervisión inmediata para mitiga
                             st.rerun()
             else:
                 st.info("No hay usuarios registrados además del administrador.")
+
+
+	    # ==============================================================================
+            # 🚀 HERRAMIENTA TEMPORAL DE MIGRACIÓN: GOOGLE SHEETS -> POSTGRESQL
+            # ==============================================================================
+            st.write("---")
+            st.subheader("🚀 Migración Automática de Datos a PostgreSQL")
+            st.caption("Transfiere las 6 hojas actuales de Google Sheets directamente a la base de datos SQL.")
+
+            if st.button("🔄 Iniciar Migración Completa (Sheets ➔ PostgreSQL)", type="primary"):
+                from sqlalchemy import text
+                
+                conn_pg = st.connection("postgresql", type="sql")
+                
+                esquema_tablas = {
+                    "usuarios": {
+                        "pk": "id_usuario",
+                        "cols_num": ["id_usuario"],
+                        "cols_all": ["id_usuario", "nombre_completo", "email", "password", "cedula", "cargo", "telefono", "rol", "municipio_asignado"]
+                    },
+                    "actividades_maestro": {
+                        "pk": "id_actividad",
+                        "cols_num": ["id_actividad", "meta_global", "valor_total_actividad"],
+                        "cols_all": ["id_actividad", "nombre_actividad", "descripcion", "meta_global", "unidad_medida", "valor_total_actividad", "programa_responsable"]
+                    },
+                    "subactividades": {
+                        "pk": "id_sub",
+                        "cols_num": ["id_sub", "id_actividad", "valor_sub", "meta_sub", "peso"],
+                        "cols_all": ["id_sub", "id_actividad", "nombre_subactividad", "valor_sub", "meta_sub", "unidad_medida_sub", "peso"]
+                    },
+                    "asignacion_municipios": {
+                        "pk": "id_asig",
+                        "cols_num": ["id_asig", "id_sub", "num_pagos", "valor_asignado", "meta_municipal"],
+                        "cols_all": ["id_asig", "id_sub", "municipio", "num_contrato", "num_pagos", "valor_asignado", "meta_municipal", "unidad_medida_muni"]
+                    },
+                    "seguimiento_pagos": {
+                        "pk": "id_seguimiento",
+                        "cols_num": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado"],
+                        "cols_all": [
+                            "id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", 
+                            "fecha_registro", "soporte_url", "soporte_municipio", "estado", "referente_aprobador", 
+                            "acta_referente", "observaciones_referente", "supervisor_aprobador", "motivo_rechazo", 
+                            "chk_plan_trabajo", "chk_cronograma", "chk_personal", "chk_seg_social", 
+                            "chk_inf_parcial", "chk_inf_final", "chk_polizas"
+                        ]
+                    },
+                    "secuencia": {
+                        "pk": "id_secuencia",
+                        "cols_num": ["id_secuencia", "id_seguimiento", "id_asig", "numero_pagos", "total_pagado_oc", "valor_cp", "saldo_cp", "porcentaje_ejecucion"],
+                        "cols_all": [
+                            "id_secuencia", "id_seguimiento", "id_asig", "municipio", "numero_contrato", 
+                            "cp_nit_beneficiario", "numero_pagos", "primer_pago", "ultimo_pago", 
+                            "total_pagado_oc", "valor_cp", "saldo_cp", "porcentaje_ejecucion"
+                        ]
+                    }
+                }
+
+                barra = st.progress(0, text="Iniciando lectura desde Google Sheets...")
+                total_tablas = len(esquema_tablas)
+
+                for idx, (tabla, config) in enumerate(esquema_tablas.items()):
+                    try:
+                        barra.progress((idx) / total_tablas, text=f"Leyendo '{tabla}' desde Google Sheets...")
+                        df_sheet = _direct_read_retry(tabla, max_retries=5)
+                        
+                        if df_sheet is None or df_sheet.empty:
+                            st.info(f"ℹ️ La hoja '{tabla}' está vacía en Google Sheets. Se omite.")
+                            continue
+
+                        pk = config["pk"]
+                        if pk not in df_sheet.columns:
+                            st.warning(f"⚠️ La hoja '{tabla}' no tiene la columna llave '{pk}'.")
+                            continue
+                            
+                        df_sheet = df_sheet.dropna(subset=[pk]).copy()
+
+                        for col in config["cols_all"]:
+                            if col not in df_sheet.columns:
+                                df_sheet[col] = None
+
+                        df_clean = df_sheet[config["cols_all"]].copy()
+
+                        for col_n in config["cols_num"]:
+                            df_clean[col_n] = pd.to_numeric(df_clean[col_n], errors="coerce").fillna(0)
+                        
+                        df_clean[pk] = df_clean[pk].astype(int)
+                        df_clean = df_clean.where(pd.notnull(df_clean), None)
+
+                        columnas = config["cols_all"]
+                        cols_sql = ", ".join(columnas)
+                        vals_sql = ", ".join([f":{c}" for c in columnas])
+                        update_sql = ", ".join([f"{c} = EXCLUDED.{c}" for c in columnas if c != pk])
+
+                        sql_upsert = text(f"""
+                            INSERT INTO {tabla} ({cols_sql})
+                            VALUES ({vals_sql})
+                            ON CONFLICT ({pk}) DO UPDATE SET {update_sql};
+                        """)
+
+                        with conn_pg.session as session:
+                            session.execute(sql_upsert, df_clean.to_dict(orient="records"))
+                            session.commit()
+
+                        st.success(f"✅ Tabla **{tabla}**: {len(df_clean)} registros migrados exitosamente a PostgreSQL.")
+                        time.sleep(2)
+
+                    except Exception as e:
+                        st.error(f"❌ Error al migrar la tabla '{tabla}': {e}")
+
+                barra.progress(1.0, text="¡Migración completada!")
+                st.balloons()
