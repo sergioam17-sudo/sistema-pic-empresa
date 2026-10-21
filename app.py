@@ -22,18 +22,137 @@
 # En la versión 7.4 se arregla el calculo de la ejecución financiera real
 # En la versión 7.5 se realiza protección a la eliminación de la hoja de seguimeinto de pagos
 # En la versión 7.6 se cambia el motor de BD
+# En la versión 7.7 se modifica el código Python para conexión con la nueva BD
+
 
 import streamlit as st
 import pandas as pd
+import time
+from sqlalchemy import text
 from streamlit_gsheets import GSheetsConnection
 
+# --- 1. CONFIGURACIÓN DE CONEXIONES (POSTGRESQL + GOOGLE SHEETS PARA MIGRACIÓN) ---
+# Conexión principal al nuevo motor de base de datos PostgreSQL usando psycopg2
+conn = st.connection("postgresql", type="sql", dialect="postgresql+psycopg2")
 
-
-# URL corregida (sin parámetros de pestaña específicos)
+# URL de Google Sheets para la herramienta temporal de migración
 URL_DB = "https://docs.google.com/spreadsheets/d/1jRdZX0gNfjWhlb86hHopVkJJrs_9bRIaulZDRzKR0pA/edit?usp=sharing"
 
-# Crear conexión
-conn = st.connection("gsheets", type=GSheetsConnection)
+# Diccionario de llaves primarias y columnas válidas por tabla en PostgreSQL
+ESQUEMA_PG = {
+    "usuarios": {
+        "pk": "id_usuario",
+        "cols": ["id_usuario", "nombre_completo", "email", "password", "cedula", "cargo", "telefono", "rol", "municipio_asignado"]
+    },
+    "actividades_maestro": {
+        "pk": "id_actividad",
+        "cols": ["id_actividad", "nombre_actividad", "descripcion", "meta_global", "unidad_medida", "valor_total_actividad", "programa_responsable"]
+    },
+    "subactividades": {
+        "pk": "id_sub",
+        "cols": ["id_sub", "id_actividad", "nombre_subactividad", "valor_sub", "meta_sub", "unidad_medida_sub", "peso"]
+    },
+    "asignacion_municipios": {
+        "pk": "id_asig",
+        "cols": ["id_asig", "id_sub", "municipio", "num_contrato", "num_pagos", "valor_asignado", "meta_municipal", "unidad_medida_muni"]
+    },
+    "seguimiento_pagos": {
+        "pk": "id_seguimiento",
+        "cols": [
+            "id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", 
+            "fecha_registro", "soporte_url", "soporte_municipio", "estado", "referente_aprobador", 
+            "acta_referente", "observaciones_referente", "supervisor_aprobador", "motivo_rechazo", 
+            "chk_plan_trabajo", "chk_cronograma", "chk_personal", "chk_seg_social", 
+            "chk_inf_parcial", "chk_inf_final", "chk_polizas"
+        ]
+    },
+    "secuencia": {
+        "pk": "id_secuencia",
+        "cols": [
+            "id_secuencia", "id_seguimiento", "id_asig", "municipio", "numero_contrato", 
+            "cp_nit_beneficiario", "numero_pagos", "primer_pago", "ultimo_pago", 
+            "total_pagado_oc", "valor_cp", "saldo_cp", "porcentaje_ejecucion"
+        ]
+    }
+}
+
+# --- 2. GESTOR DE LECTURA DESDE POSTGRESQL CON CACHÉ ---
+@st.cache_data(ttl=120, show_spinner=False)
+def get_data_cached(nombre_hoja):
+    pk = ESQUEMA_PG[nombre_hoja]["pk"]
+    query = f"SELECT * FROM {nombre_hoja} ORDER BY {pk} ASC;"
+    return conn.query(query, ttl=0)
+
+def get_data(nombre_hoja, forzar=False):
+    """
+    Recupera los datos desde PostgreSQL en milisegundos sin límite de cuota.
+    """
+    try:
+        if forzar:
+            get_data_cached.clear()
+        df = get_data_cached(nombre_hoja)
+        return df.copy()
+    except Exception as e:
+        st.error(f"🚨 Error al consultar '{nombre_hoja}' en PostgreSQL: {e}")
+        return pd.DataFrame(columns=ESQUEMA_PG[nombre_hoja]["cols"])
+
+# --- 3. ESCRITURA TRANSACCIONAL ACID (CON BARRERA ANTI-BORRADO) ---
+def safe_update(worksheet_name, df_final):
+    """
+    Sincroniza cambios en PostgreSQL mediante UPSERT atómico (ON CONFLICT DO UPDATE).
+    Protege tablas críticas contra cualquier eliminación de filas vacías accidentales.
+    """
+    if df_final is None or not isinstance(df_final, pd.DataFrame):
+        st.error(f"🛑 Error Transaccional: El dataset enviado a '{worksheet_name}' no es válido.")
+        return False
+
+    pk = ESQUEMA_PG[worksheet_name]["pk"]
+    cols_validas = ESQUEMA_PG[worksheet_name]["cols"]
+
+    try:
+        with conn.session as session:
+            if worksheet_name in ["seguimiento_pagos", "asignacion_municipios", "subactividades"]:
+                df_previo = get_data(worksheet_name)
+                if not df_previo.empty and len(df_final) == 0:
+                    st.error(f"🛑 Bloqueo Crítico de Seguridad: Se intentó vaciar la tabla '{worksheet_name}'. Transacción abortada.")
+                    return False
+
+            if worksheet_name not in ["seguimiento_pagos"]:
+                if not df_final.empty and pk in df_final.columns:
+                    ids_actuales = df_final[pk].dropna().astype(int).tolist()
+                    if len(ids_actuales) > 0:
+                        session.execute(
+                            text(f"DELETE FROM {worksheet_name} WHERE {pk} NOT IN :ids"),
+                            {"ids": tuple(ids_actuales)}
+                        )
+
+            if not df_final.empty:
+                cols_presentes = [c for c in df_final.columns if c in cols_validas]
+                df_clean = df_final[cols_presentes].copy()
+                df_clean[pk] = pd.to_numeric(df_clean[pk], errors="coerce").astype(int)
+                df_clean = df_clean.where(pd.notnull(df_clean), None)
+
+                cols_sql = ", ".join(cols_presentes)
+                vals_sql = ", ".join([f":{c}" for c in cols_presentes])
+                update_sql = ", ".join([f"{c} = EXCLUDED.{c}" for c in cols_presentes if c != pk])
+
+                sql_upsert = text(f"""
+                    INSERT INTO {worksheet_name} ({cols_sql})
+                    VALUES ({vals_sql})
+                    ON CONFLICT ({pk}) DO UPDATE SET {update_sql};
+                """)
+
+                session.execute(sql_upsert, df_clean.to_dict(orient="records"))
+
+            session.commit()
+
+        get_data_cached.clear()
+        return True
+
+    except Exception as e:
+        st.error(f"❌ Error de persistencia en PostgreSQL ({worksheet_name}): {e}")
+        return False
+
 
 # --- FUNCIÓN PARA INICIALIZAR ENCABEZADOS (AUTOMÁTICO) ---
 
