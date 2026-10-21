@@ -23,20 +23,17 @@
 # En la versión 7.5 se realiza protección a la eliminación de la hoja de seguimeinto de pagos
 # En la versión 7.6 se cambia el motor de BD
 # En la versión 7.7 se modifica el código Python para conexión con la nueva BD
+# se quita la opción de igración
 
 
 import streamlit as st
 import pandas as pd
 import time
 from sqlalchemy import text
-from streamlit_gsheets import GSheetsConnection
 
-# --- 1. CONFIGURACIÓN DE CONEXIONES (POSTGRESQL + GOOGLE SHEETS PARA MIGRACIÓN) ---
-# Conexión principal al nuevo motor de base de datos PostgreSQL usando psycopg2
+# --- 1. CONFIGURACIÓN DE CONEXIÓN A POSTGRESQL ---
+# Conexión nativa a Supabase utilizando psycopg2
 conn = st.connection("postgresql", type="sql", dialect="postgresql+psycopg2")
-
-# URL de Google Sheets para la herramienta temporal de migración
-URL_DB = "https://docs.google.com/spreadsheets/d/1jRdZX0gNfjWhlb86hHopVkJJrs_9bRIaulZDRzKR0pA/edit?usp=sharing"
 
 # Diccionario de llaves primarias y columnas válidas por tabla en PostgreSQL
 ESQUEMA_PG = {
@@ -153,127 +150,21 @@ def safe_update(worksheet_name, df_final):
         st.error(f"❌ Error de persistencia en PostgreSQL ({worksheet_name}): {e}")
         return False
 
-
-# --- FUNCIÓN PARA INICIALIZAR ENCABEZADOS (AUTOMÁTICO) ---
-
-import time
-
-# --- 1. LECTURA DIRECTA RESILIENTE CON BACKOFF EXPONENCIAL ---
-def _direct_read_retry(worksheet_name, max_retries=4):
-    for i in range(max_retries):
-        try:
-            df = conn.read(spreadsheet=URL_DB, worksheet=worksheet_name, ttl=0)
-            if df is not None:
-                return df
-        except Exception as e:
-            if i == max_retries - 1:
-                return None
-            # Pausa progresiva: 2s, 3s, 5s, 9s
-            time.sleep((2 ** i) + 1)
-    return None
-
-# --- 2. LECTURA CENTRALIZADA EN MEMORIA (TTL DE 60 SEGUNDOS) ---
-@st.cache_data(ttl=60, show_spinner=False)
-def get_data_cached(nombre_hoja):
-    df = _direct_read_retry(nombre_hoja)
-    if df is None:
-        raise RuntimeError(f"Límite de cuota temporal al consultar '{nombre_hoja}'.")
-    return df
-
-# --- 3. GESTOR DE LECTURA PROTEGIDO CONTRA DATASETS VACÍOS ---
-
-# --- 3. GESTOR DE LECTURA BLINDADO (SIN RETORNO DESTRUCTIVO VACÍO) ---
-def get_data(nombre_hoja, forzar=False):
-    """
-    Recupera los datos garantizando que ante congestión de red jamás
-    se retorne un DataFrame vacío silencioso si la hoja tiene registros.
-    """
-    if forzar:
-        df_fresh = _direct_read_retry(nombre_hoja, max_retries=5)
-        if df_fresh is not None and not df_fresh.empty:
-            return df_fresh.copy()
-        try:
-            df_cache = get_data_cached(nombre_hoja)
-            if df_cache is not None and not df_cache.empty:
-                return df_cache.copy()
-        except Exception:
-            pass
-        st.error(f"🚨 Alerta de Concurrencia Crítica: No fue posible leer '{nombre_hoja}'. Operación detenida por seguridad.")
-        st.stop()
-    else:
-        try:
-            df_cached = get_data_cached(nombre_hoja)
-            if df_cached is not None and not df_cached.empty:
-                return df_cached.copy()
-        except Exception:
-            pass
-
-        df_recovery = _direct_read_retry(nombre_hoja, max_retries=5)
-        if df_recovery is not None:
-            return df_recovery.copy()
-
-        st.warning(f"⏳ Mitigando congestión en Google Sheets para '{nombre_hoja}'...")
-        st.stop()
-
-# --- 4. ESCRITURA TRANSACCIONAL CON BARRERA ANTI-BORRADO ---
-
-# --- 4. ESCRITURA TRANSACCIONAL CON BARRERA ANTI-BORRADO BLINDADA ---
-def safe_update(worksheet_name, df_final):
-    """
-    Garantiza la persistencia atómica. Si se detecta riesgo de sobreescritura
-    accidental con un DataFrame vacío o menor, cancela la petición de forma segura.
-    """
-    if df_final is None or not isinstance(df_final, pd.DataFrame):
-        st.error(f"🛑 Error Transaccional: El dataset enviado a '{worksheet_name}' no es válido.")
-        return False
-
-    # Verificación preventiva estricta para seguimiento_pagos y tablas críticas
-    if worksheet_name in ["seguimiento_pagos", "asignacion_municipios", "subactividades"]:
-        try:
-            df_previo = _direct_read_retry(worksheet_name, max_retries=3)
-            if df_previo is not None and not df_previo.empty:
-                filas_previas = len(df_previo)
-                filas_nuevas = len(df_final)
-                
-                # Bloqueo crítico: Si la base previa tiene registros y el nuevo intento envía 0 filas (o menos), se aborta.
-                if filas_previas > 0 and filas_nuevas == 0:
-                    st.error(
-                        f"🛑 Bloqueo Crítico de Seguridad: Se intentó sobrescribir la hoja '{worksheet_name}' "
-                        f"que contiene {filas_previas} registros con un lote VACÍO (0 filas). Transacción abortada."
-                    )
-                    return False
-                
-                if filas_nuevas < filas_previas and worksheet_name == "seguimiento_pagos":
-                    st.error(
-                        f"🛑 Bloqueo de Seguridad Activado: Se intentó guardar un lote de {filas_nuevas} "
-                        f"registros sobre una base de {filas_previas} filas en '{worksheet_name}'. Transacción abortada para evitar pérdida de datos."
-                    )
-                    return False
-        except Exception as e:
-            # Si falla la lectura previa por red, por seguridad se detiene la escritura si la nueva está vacía
-            if df_final.empty:
-                st.error(f"🛑 Error de Concurrencia: No se pudo verificar la integridad previa de '{worksheet_name}' y el dataset nuevo está vacío.")
-                return False
-
-    max_retries = 5
-    for i in range(max_retries):
-        try:
-            conn.update(spreadsheet=URL_DB, worksheet=worksheet_name, data=df_final)
-            get_data_cached.clear()
-            return True
-        except Exception as e:
-            err_str = str(e)
-            if "429" in err_str or "Quota" in err_str or "exhausted" in err_str.lower():
-                espera = (2 ** i) * 3 + 2
-                st.warning(f"⏳ Concurrencia alta en '{worksheet_name}'. Esperando {espera}s para confirmar escritura...")
-                time.sleep(espera)
-            else:
-                st.error(f"Error de persistencia ({worksheet_name}): {e}")
-                return False
-
-    st.error(f"❌ No fue posible sincronizar en '{worksheet_name}' tras {max_retries} intentos.")
-    return False
-
+# --- 4. REGISTRO DE USUARIOS SEGURO ---
+def guardar_nuevo_usuario(nombre, email, clave, rol, muni):
+    df_actual = get_data("usuarios", forzar=True)
+    nuevo_id = 1 if df_actual.empty or "id_usuario" not in df_actual.columns else int(df_actual["id_usuario"].max()) + 1
+    nueva_fila = pd.DataFrame([{
+        "id_usuario": nuevo_id,
+        "nombre_completo": nombre,
+        "email": email,
+        "password": clave,
+        "rol": rol,
+        "municipio_asignado": muni
+    }])
+    df_final = pd.concat([df_actual, nueva_fila], ignore_index=True)
+    if safe_update("usuarios", df_final):
+        st.success("Usuario registrado exitosamente.")
 
 
 
@@ -2654,114 +2545,3 @@ Se recomienda coordinar comités técnicos de supervisión inmediata para mitiga
                             st.rerun()
             else:
                 st.info("No hay usuarios registrados además del administrador.")
-
-
-	    # ==============================================================================
-            # 🚀 HERRAMIENTA TEMPORAL DE MIGRACIÓN: GOOGLE SHEETS -> POSTGRESQL
-            # ==============================================================================
-            st.write("---")
-            st.subheader("🚀 Migración Automática de Datos a PostgreSQL")
-            st.caption("Transfiere las 6 hojas actuales de Google Sheets directamente a la base de datos SQL.")
-
-            if st.button("🔄 Iniciar Migración Completa (Sheets ➔ PostgreSQL)", type="primary"):
-                from sqlalchemy import text
-                
-                conn_pg = st.connection("postgresql", type="sql")
-                
-                esquema_tablas = {
-                    "usuarios": {
-                        "pk": "id_usuario",
-                        "cols_num": ["id_usuario"],
-                        "cols_all": ["id_usuario", "nombre_completo", "email", "password", "cedula", "cargo", "telefono", "rol", "municipio_asignado"]
-                    },
-                    "actividades_maestro": {
-                        "pk": "id_actividad",
-                        "cols_num": ["id_actividad", "meta_global", "valor_total_actividad"],
-                        "cols_all": ["id_actividad", "nombre_actividad", "descripcion", "meta_global", "unidad_medida", "valor_total_actividad", "programa_responsable"]
-                    },
-                    "subactividades": {
-                        "pk": "id_sub",
-                        "cols_num": ["id_sub", "id_actividad", "valor_sub", "meta_sub", "peso"],
-                        "cols_all": ["id_sub", "id_actividad", "nombre_subactividad", "valor_sub", "meta_sub", "unidad_medida_sub", "peso"]
-                    },
-                    "asignacion_municipios": {
-                        "pk": "id_asig",
-                        "cols_num": ["id_asig", "id_sub", "num_pagos", "valor_asignado", "meta_municipal"],
-                        "cols_all": ["id_asig", "id_sub", "municipio", "num_contrato", "num_pagos", "valor_asignado", "meta_municipal", "unidad_medida_muni"]
-                    },
-                    "seguimiento_pagos": {
-                        "pk": "id_seguimiento",
-                        "cols_num": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado"],
-                        "cols_all": [
-                            "id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", 
-                            "fecha_registro", "soporte_url", "soporte_municipio", "estado", "referente_aprobador", 
-                            "acta_referente", "observaciones_referente", "supervisor_aprobador", "motivo_rechazo", 
-                            "chk_plan_trabajo", "chk_cronograma", "chk_personal", "chk_seg_social", 
-                            "chk_inf_parcial", "chk_inf_final", "chk_polizas"
-                        ]
-                    },
-                    "secuencia": {
-                        "pk": "id_secuencia",
-                        "cols_num": ["id_secuencia", "id_seguimiento", "id_asig", "numero_pagos", "total_pagado_oc", "valor_cp", "saldo_cp", "porcentaje_ejecucion"],
-                        "cols_all": [
-                            "id_secuencia", "id_seguimiento", "id_asig", "municipio", "numero_contrato", 
-                            "cp_nit_beneficiario", "numero_pagos", "primer_pago", "ultimo_pago", 
-                            "total_pagado_oc", "valor_cp", "saldo_cp", "porcentaje_ejecucion"
-                        ]
-                    }
-                }
-
-                barra = st.progress(0, text="Iniciando lectura desde Google Sheets...")
-                total_tablas = len(esquema_tablas)
-
-                for idx, (tabla, config) in enumerate(esquema_tablas.items()):
-                    try:
-                        barra.progress((idx) / total_tablas, text=f"Leyendo '{tabla}' desde Google Sheets...")
-                        df_sheet = _direct_read_retry(tabla, max_retries=5)
-                        
-                        if df_sheet is None or df_sheet.empty:
-                            st.info(f"ℹ️ La hoja '{tabla}' está vacía en Google Sheets. Se omite.")
-                            continue
-
-                        pk = config["pk"]
-                        if pk not in df_sheet.columns:
-                            st.warning(f"⚠️ La hoja '{tabla}' no tiene la columna llave '{pk}'.")
-                            continue
-                            
-                        df_sheet = df_sheet.dropna(subset=[pk]).copy()
-
-                        for col in config["cols_all"]:
-                            if col not in df_sheet.columns:
-                                df_sheet[col] = None
-
-                        df_clean = df_sheet[config["cols_all"]].copy()
-
-                        for col_n in config["cols_num"]:
-                            df_clean[col_n] = pd.to_numeric(df_clean[col_n], errors="coerce").fillna(0)
-                        
-                        df_clean[pk] = df_clean[pk].astype(int)
-                        df_clean = df_clean.where(pd.notnull(df_clean), None)
-
-                        columnas = config["cols_all"]
-                        cols_sql = ", ".join(columnas)
-                        vals_sql = ", ".join([f":{c}" for c in columnas])
-                        update_sql = ", ".join([f"{c} = EXCLUDED.{c}" for c in columnas if c != pk])
-
-                        sql_upsert = text(f"""
-                            INSERT INTO {tabla} ({cols_sql})
-                            VALUES ({vals_sql})
-                            ON CONFLICT ({pk}) DO UPDATE SET {update_sql};
-                        """)
-
-                        with conn_pg.session as session:
-                            session.execute(sql_upsert, df_clean.to_dict(orient="records"))
-                            session.commit()
-
-                        st.success(f"✅ Tabla **{tabla}**: {len(df_clean)} registros migrados exitosamente a PostgreSQL.")
-                        time.sleep(2)
-
-                    except Exception as e:
-                        st.error(f"❌ Error al migrar la tabla '{tabla}': {e}")
-
-                barra.progress(1.0, text="¡Migración completada!")
-                st.balloons()
