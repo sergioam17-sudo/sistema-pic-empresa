@@ -697,8 +697,9 @@ else:
                         st.dataframe(df_prog_analysis.sort_values(by='% Avance'), use_container_width=True, hide_index=True)
 
  
+
                 # =============================================================================
-                # PESTAÑA 2: ANÁLISIS ESPECÍFICO DESAGREGADO POR MUNICIPIO (SOLUCIÓN TODOS)
+                # PESTAÑA 2: ANÁLISIS ESPECÍFICO DESAGREGADO POR MUNICIPIO (SOLUCIÓN TODOS + COLUMNA MUNICIPIO)
                 # =============================================================================
                 with tab_municipios_analitica:
                     st.subheader("🔎 Filtro de Precisión: Auditoría y Desglose Territorial")
@@ -714,19 +715,18 @@ else:
                     if df_muni_especifico.empty:
                         st.info("No se registran datos indexados para el filtro seleccionado.")
                     else:
-
-
-
-                        # 🛡️ CONTROL DEFENSIVO: Asegurar la existencia de las columnas requeridas
+                        # 🛡️ CONTROL DEFENSIVO: Asegurar la existencia de las columnas requeridas (Incluyendo Municipio)
                         columnas_obligatorias = [
-                            'id_actividad', 'nombre_actividad', 'nombre_subactividad', 
+                            'municipio', 'id_actividad', 'nombre_actividad', 'nombre_subactividad', 
                             'meta_municipal', 'total_ejecutado_fisico', 
                             'valor_asignado', 'total_ejecutado_financiero'
                         ]
                         
                         for col in columnas_obligatorias:
                             if col not in df_muni_especifico.columns:
-                                if 'id' in col:
+                                if col == 'municipio':
+                                    df_muni_especifico[col] = "Sin Asignar"
+                                elif 'id' in col:
                                     df_muni_especifico[col] = "N/A"
                                 elif 'nombre' in col:
                                     df_muni_especifico[col] = "Sin Registro"
@@ -760,16 +760,15 @@ else:
                         df_muni_especifico['Brecha Financiera ($)'] = df_muni_especifico['valor_asignado'] - df_muni_especifico['total_ejecutado_financiero']
                         df_muni_especifico['% Avance'] = (df_muni_especifico['total_ejecutado_financiero'] / df_muni_especifico['valor_asignado'].replace(0,1)) * 100
                         
-                        # Indexación 100% blindada contra cualquier estado de filtros o Sheets vacíos
+                        # Indexación incorporando la columna 'municipio' en el desglose técnico
                         df_tabla_muni_det = df_muni_especifico[[
-                            'id_actividad', 'nombre_actividad', 'nombre_subactividad', 
+                            'municipio', 'id_actividad', 'nombre_actividad', 'nombre_subactividad', 
                             'meta_municipal', 'total_ejecutado_fisico', 
                             'valor_asignado', 'total_ejecutado_financiero', 'Brecha Financiera ($)', '% Avance'
                         ]].copy()
 
-                        
                         df_tabla_muni_det.columns = [
-                            'ID Actividad', 'Actividad Maestro', 'Subactividad', 'Meta Programada', 'Avance Físico', 
+                            'Municipio', 'ID Actividad', 'Actividad Maestro', 'Subactividad', 'Meta Programada', 'Avance Físico', 
                             'Presupuesto Asignado', 'Presupuesto Ejecutado', 'Brecha Económica', '% Eficiencia'
                         ]
                         
