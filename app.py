@@ -25,6 +25,8 @@
 # En la versión 7.7 se modifica el código Python para conexión con la nueva BD
 # se quita la opción de igración
 # EN la versión 7.9 se incluye la opción de todos los municipios para la tabla de trazabilidad
+#En la versión 8 se incluye la columna en la tabla de seguimiento de pagos para ingresar el numero de la cuenta
+
 
 
 import streamlit as st
@@ -58,12 +60,14 @@ ESQUEMA_PG = {
         "pk": "id_seguimiento",
         "cols": [
             "id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", 
-            "fecha_registro", "soporte_url", "soporte_municipio", "estado", "referente_aprobador", 
+            "cuenta", "fecha_registro", "soporte_url", "soporte_municipio", "estado", "referente_aprobador", 
             "acta_referente", "observaciones_referente", "supervisor_aprobador", "motivo_rechazo", 
             "chk_plan_trabajo", "chk_cronograma", "chk_personal", "chk_seg_social", 
             "chk_inf_parcial", "chk_inf_final", "chk_polizas"
         ]
     },
+
+
     "secuencia": {
         "pk": "id_secuencia",
         "cols": [
@@ -197,7 +201,7 @@ def init_excel_db():
         "actividades_maestro": ["id_actividad", "nombre_actividad", "descripcion", "meta_global", "unidad_medida", "valor_total_actividad", "programa_responsable"],
         "subactividades": ["id_sub", "id_actividad", "nombre_subactividad", "valor_sub", "meta_sub", "unidad_medida_sub", "peso"],
         "asignacion_municipios": ["id_asig", "id_sub", "municipio", "num_contrato", "num_pagos", "valor_asignado", "meta_municipal", "unidad_medida_muni"],
-        "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "fecha_registro", "soporte_url", "estado", "referente_aprobador", "acta_referente", "observaciones_referente", "supervisor_aprobador", "motivo_rechazo", "chk_plan_trabajo", "chk_cronograma", "chk_personal", "chk_seg_social", "chk_inf_parcial", "chk_inf_final", "chk_polizas"],
+        "seguimiento_pagos": ["id_seguimiento", "id_asig", "num_pago_actual", "avance_meta", "valor_calculado", "cuenta", "fecha_registro", "soporte_url", "estado", "referente_aprobador", "acta_referente", "observaciones_referente", "supervisor_aprobador", "motivo_rechazo", "chk_plan_trabajo", "chk_cronograma", "chk_personal", "chk_seg_social", "chk_inf_parcial", "chk_inf_final", "chk_polizas"],
         "secuencia": ["id_secuencia", "id_seguimiento", "id_asig", "municipio", "numero_contrato", "cp_nit_beneficiario", "numero_pagos", "primer_pago", "ultimo_pago", "total_pagado_oc", "valor_cp", "saldo_cp", "porcentaje_ejecucion"]
     }
     
@@ -1339,6 +1343,8 @@ else:
                     st.write(f"💰 **Valor calculado para este reporte:** :green[${val_dinamico:,.2f}]")
                     st.caption(f"*(Equivale al {porcentaje:.1f}% de la meta total municipal)*")
 
+                    num_cuenta = st.number_input("Número de cuenta a ingresar", min_value=0, step=1, format="%d")
+
                     with st.form("form_reporte_muni"):
                         soporte = st.text_input("Link a carpeta de soportes (Evidencias)")
                         
@@ -1359,6 +1365,7 @@ else:
                                     "num_pago_actual": siguiente_pago,
                                     "avance_meta": meta_avanc,
                                     "valor_calculado": valor_final_pago,
+                                    "cuenta": num_cuenta,
                                     "soporte_municipio": soporte,
                                     "estado": 'PENDIENTE',
                                     "fecha_registro": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
