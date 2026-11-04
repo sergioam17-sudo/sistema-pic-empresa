@@ -24,6 +24,7 @@
 # En la versión 7.6 se cambia el motor de BD
 # En la versión 7.7 se modifica el código Python para conexión con la nueva BD
 # se quita la opción de igración
+# EN la versión 7.9 se incluye la opción de todos los municipios para la tabla de trazabilidad
 
 
 import streamlit as st
@@ -695,20 +696,27 @@ else:
                         df_prog_analysis['% Avance'] = (df_prog_analysis['total_ejecutado_financiero'] / df_prog_analysis['valor_asignado'].replace(0,1)) * 100
                         st.dataframe(df_prog_analysis.sort_values(by='% Avance'), use_container_width=True, hide_index=True)
 
+ 
                 # =============================================================================
-                # PESTAÑA 2: ANÁLISIS ESPECÍFICO DESAGREGADO POR MUNICIPIO (SOLUCIÓN KEYERROR)
+                # PESTAÑA 2: ANÁLISIS ESPECÍFICO DESAGREGADO POR MUNICIPIO (SOLUCIÓN TODOS)
                 # =============================================================================
                 with tab_municipios_analitica:
                     st.subheader("🔎 Filtro de Precisión: Auditoría y Desglose Territorial")
                     
-                    lista_muni_selector = sorted(df_master_f['municipio'].unique().tolist())
+                    lista_muni_selector = ["TODOS"] + sorted(df_master_f['municipio'].unique().tolist())
                     sel_muni_analisis = st.selectbox("Seleccione el Municipio a Fiscalizar:", lista_muni_selector, key="sb_muni_analitica")
                     
-                    df_muni_especifico = df_master_f[df_master_f['municipio'] == sel_muni_analisis].copy()
+                    if sel_muni_analisis == "TODOS":
+                        df_muni_especifico = df_master_f.copy()
+                    else:
+                        df_muni_especifico = df_master_f[df_master_f['municipio'] == sel_muni_analisis].copy()
                     
                     if df_muni_especifico.empty:
-                        st.info("No se registran datos indexados para el municipio seleccionado.")
+                        st.info("No se registran datos indexados para el filtro seleccionado.")
                     else:
+
+
+
                         # 🛡️ CONTROL DEFENSIVO: Asegurar la existencia de las columnas requeridas
                         columnas_obligatorias = [
                             'id_actividad', 'nombre_actividad', 'nombre_subactividad', 
