@@ -1942,8 +1942,20 @@ else:
                             st.write(f"**💬 Observaciones del Referente:** {fila_sel.get('observaciones_referente', 'Sin observaciones')}")
                         with c_aud2:
                             st.write(f"**🧑‍💼 Avalado por Referente:** :blue[{fila_sel['referente_aprobador']}]")
-                            st.write(f"🔗 [Ver Evidencias del Municipio]({fila_sel['soporte_municipio']})")
-                            st.write(f"📄 [Ver Acta Adjunta del Referente]({fila_sel['acta_referente']})")
+                            
+                            # Enlace seguro para Evidencias del Municipio
+                            soporte_muni_url = str(fila_sel.get('soporte_municipio', ''))
+                            if soporte_muni_url.startswith('http'):
+                                st.markdown(f"🔗 [Ver Evidencias del Municipio]({soporte_muni_url})", unsafe_allow_html=True)
+                            else:
+                                st.caption("🔗 Evidencias del Municipio: No dispatible o enlace no válido")
+                            
+                            # Enlace seguro para el Acta Adjunta del Referente (Previene pérdida de sesión)
+                            acta_ref_url = str(fila_sel.get('acta_referente', ''))
+                            if acta_ref_url.startswith('http'):
+                                st.markdown(f"📄 <a href='{acta_ref_url}' target='_blank'>Ver Acta Adjunta del Referente</a>", unsafe_allow_html=True)
+                            else:
+                                st.caption("📄 Acta del Referente: Sin acta adjunta o enlace no válido")
 
 
 
